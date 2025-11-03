@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { User, Mail, Phone, Building, Save } from 'lucide-react'
+// import { SessionManager } from '@/components/session-manager' // Hidden - silent monitoring
 
 export default function ProfilePage() {
   const { data: session } = useSession()
@@ -109,51 +110,61 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-indigo-50 p-8">
+    <div className="p-8">
       <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold text-gray-900">Profil Saya</h2>
+          <p className="text-gray-500 text-xs">Kelola informasi profil Anda</p>
+        </div>
+
         {/* Profile Header */}
-        <Card className="mb-6 shadow-lg border-2">
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-6">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                <span className="text-4xl font-bold text-white">
+        <Card className="mb-4 shadow-sm border border-gray-200 rounded-xl">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-[#3674B5] rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl font-bold text-white">
                   {session?.user?.name?.charAt(0).toUpperCase() || 'U'}
                 </span>
               </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg font-semibold text-gray-900 truncate">
                   {session?.user?.name || 'User'}
                 </h1>
-                <p className="text-gray-600 mt-1">{session?.user?.email}</p>
+                <p className="text-sm text-gray-500 truncate">{session?.user?.email}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded font-medium">
+                  {session?.user?.role === 'ADMIN' ? 'Admin' : 'User'}
+                </span>
+                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded font-medium">
+                  Terverifikasi
+                </span>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Profile Form */}
-        <Card className="shadow-lg border-2">
-          <CardHeader>
-            <CardTitle className="text-2xl flex items-center">
-              <User className="h-6 w-6 mr-2 text-blue-600" />
-              Informasi Profil
-            </CardTitle>
-            <CardDescription>
-              Perbarui informasi profil Anda
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+        <Card className="shadow-sm border border-gray-200 rounded-xl">
+          <CardContent className="pt-4 pb-4">
             {isLoadingProfile ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex items-center justify-center py-8">
                 <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Memuat profil...</p>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-800 mx-auto mb-3"></div>
+                  <p className="text-sm text-gray-600">Memuat profil...</p>
                 </div>
               </div>
             ) : (
-              <>
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                  <User className="h-4 w-4 mr-1.5" />
+                  Informasi Profil
+                </h3>
+
                 {/* Full Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="fullName" className="text-base font-semibold">
+                <div className="space-y-1.5">
+                  <Label htmlFor="fullName" className="text-xs font-medium text-gray-700">
                     Nama Lengkap <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -162,27 +173,27 @@ export default function ProfilePage() {
                     value={formData.fullName}
                     onChange={handleInputChange}
                     placeholder="Masukkan nama lengkap"
-                    className="h-11 text-base"
+                    className="h-9 text-sm"
                     disabled={loading}
                   />
                 </div>
 
                 {/* Email (Read-only) */}
-                <div className="space-y-2">
-                  <Label className="text-base font-semibold flex items-center">
-                    <Mail className="h-4 w-4 mr-2 text-gray-400" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-gray-700 flex items-center">
+                    <Mail className="h-3 w-3 mr-1 text-gray-400" />
                     Email
                   </Label>
-                  <div className="h-11 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 flex items-center text-gray-600">
+                  <div className="h-9 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 flex items-center text-sm text-gray-600">
                     {formData.email}
                   </div>
                   <p className="text-xs text-gray-500">Email tidak dapat diubah</p>
                 </div>
 
                 {/* Phone */}
-                <div className="space-y-2">
-                  <Label htmlFor="phone" className="text-base font-semibold flex items-center">
-                    <Phone className="h-4 w-4 mr-2 text-gray-400" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="phone" className="text-xs font-medium text-gray-700 flex items-center">
+                    <Phone className="h-3 w-3 mr-1 text-gray-400" />
                     Nomor Telepon
                   </Label>
                   <Input
@@ -192,15 +203,15 @@ export default function ProfilePage() {
                     value={formData.phone}
                     onChange={handleInputChange}
                     placeholder="Masukkan nomor telepon"
-                    className="h-11 text-base"
+                    className="h-9 text-sm"
                     disabled={loading}
                   />
                 </div>
 
                 {/* Institution */}
-                <div className="space-y-2">
-                  <Label htmlFor="institution" className="text-base font-semibold flex items-center">
-                    <Building className="h-4 w-4 mr-2 text-gray-400" />
+                <div className="space-y-1.5">
+                  <Label htmlFor="institution" className="text-xs font-medium text-gray-700 flex items-center">
+                    <Building className="h-3 w-3 mr-1 text-gray-400" />
                     Institusi / Organisasi
                   </Label>
                   <Input
@@ -209,21 +220,21 @@ export default function ProfilePage() {
                     value={formData.institution}
                     onChange={handleInputChange}
                     placeholder="Masukkan institusi atau organisasi"
-                    className="h-11 text-base"
+                    className="h-9 text-sm"
                     disabled={loading}
                   />
                 </div>
 
                 {/* Save Button */}
-                <div className="pt-4 border-t">
+                <div className="pt-3 border-t border-gray-200">
                   <Button
                     onClick={handleSaveProfile}
                     disabled={loading}
-                    className="w-full h-12 text-base bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full h-9 text-sm bg-[#3674B5] hover:bg-[#578FCA] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <div className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
@@ -231,37 +242,21 @@ export default function ProfilePage() {
                       </div>
                     ) : (
                       <>
-                        <Save className="h-5 w-5 mr-2" />
+                        <Save className="h-4 w-4 mr-1.5" />
                         Simpan Perubahan
                       </>
                     )}
                   </Button>
                 </div>
-              </>
+              </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Account Info */}
-        <Card className="mt-6 shadow-lg border-2">
-          <CardHeader>
-            <CardTitle className="text-lg">Informasi Akun</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Role</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {session?.user?.role === 'ADMIN' ? 'Administrator' : 'User'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Email Terverifikasi</p>
-                <p className="text-lg font-semibold text-green-600">Terverifikasi</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Session Management - Hidden from users */}
+        {/* <div className="mt-4">
+          <SessionManager />
+        </div> */}
       </div>
     </div>
   )

@@ -14,6 +14,9 @@ declare module 'next-auth' {
       email: string
       name: string
       role: string
+      sessionToken?: string
+      accountStatus?: string
+      isActive?: boolean
     }
   }
 }
@@ -22,5 +25,9 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id: string
     role: string
+    sessionToken?: string
+    accountStatus?: string
+    isActive?: boolean
+    isValid?: boolean
   }
 }

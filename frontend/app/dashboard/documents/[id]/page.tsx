@@ -46,7 +46,7 @@ export default function DocumentDetailPage() {
   const params = useParams()
   const { toast } = useToast()
 
-  const [document, setDocument] = useState<Document | null>(null)
+  const [documentData, setDocumentData] = useState<Document | null>(null)
   const [loading, setLoading] = useState(true)
   const [jobId, setJobId] = useState<string | null>(null)
   const [processingProgress, setProcessingProgress] = useState<any>(null)
@@ -61,7 +61,7 @@ export default function DocumentDetailPage() {
 
   // Auto-refresh for processing documents
   useEffect(() => {
-    if (!document || document.status !== 'PROCESSING' || !jobId) {
+    if (!documentData || documentData.status !== 'PROCESSING' || !jobId) {
       return
     }
 
@@ -70,7 +70,7 @@ export default function DocumentDetailPage() {
     }, 1000) // Check every 1 second for faster updates
 
     return () => clearInterval(interval)
-  }, [document?.status, jobId])
+  }, [documentData?.status, jobId])
 
   const fetchDocument = async () => {
     try {
@@ -78,7 +78,7 @@ export default function DocumentDetailPage() {
       const data = await response.json()
 
       if (data.success) {
-        setDocument(data.data)
+        setDocumentData(data.data)
         console.log('[Document] Status:', data.data.status)
 
         // Try to load jobId from localStorage or database
@@ -215,30 +215,30 @@ export default function DocumentDetailPage() {
     switch (status) {
       case 'COMPLETED':
         return (
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-medium border border-green-200">
-            <CheckCircle className="h-4 w-4" />
+          <div className="flex items-center space-x-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium">
+            <CheckCircle className="h-3 w-3" />
             <span>Selesai</span>
           </div>
         )
       case 'PROCESSING':
       case 'ANALYZING':
         return (
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium border border-blue-200">
-            <Clock className="h-4 w-4" />
-            <span>Diproses</span>
+          <div className="flex items-center space-x-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+            <Clock className="h-3 w-3" />
+            <span>Proses</span>
           </div>
         )
       case 'FAILED':
         return (
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-xs font-medium border border-red-200">
-            <AlertCircle className="h-4 w-4" />
+          <div className="flex items-center space-x-1 px-2 py-1 bg-red-50 text-red-700 rounded text-xs font-medium">
+            <AlertCircle className="h-3 w-3" />
             <span>Gagal</span>
           </div>
         )
       default:
         return (
-          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-50 text-gray-700 rounded-lg text-xs font-medium border border-gray-200">
-            <Clock className="h-4 w-4" />
+          <div className="flex items-center space-x-1 px-2 py-1 bg-gray-50 text-gray-700 rounded text-xs font-medium">
+            <Clock className="h-3 w-3" />
             <span>Pending</span>
           </div>
         )
@@ -274,7 +274,7 @@ export default function DocumentDetailPage() {
     )
   }
 
-  if (!document) {
+  if (!documentData) {
     return (
       <div className="min-h-screen p-8">
         <div className="max-w-4xl">
@@ -311,118 +311,72 @@ export default function DocumentDetailPage() {
         </Button>
 
         {/* Header */}
-        <Card className="mb-6 shadow-sm border border-gray-200 rounded-xl">
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start space-x-4 flex-1">
-                <div className="w-16 h-16 bg-[#D1F8EF] rounded-lg flex items-center justify-center flex-shrink-0">
-                  <File className="h-8 w-8 text-[#3674B5]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h1 className="text-2xl font-semibold text-gray-900 break-words">
-                    {document.title}
-                  </h1>
-                  <p className="text-gray-500 mt-1 break-words text-sm">
-                    {document.originalFilename}
-                  </p>
-                  <div className="flex items-center space-x-3 mt-3">
-                    {getStatusBadge(document.status)}
-                    {document.pdfPath && (
-                      <span className="text-xs bg-[#A1E3F9] text-[#3674B5] px-3 py-1 rounded-lg font-medium border border-[#578FCA]">
-                        PDF Turnitin Tersedia
-                      </span>
-                    )}
-                  </div>
-
-                </div>
+        <Card className="mb-4 shadow-sm border border-gray-200 rounded-xl">
+          <CardContent className="pt-5 pb-5">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-[#D1F8EF] rounded-lg flex items-center justify-center flex-shrink-0">
+                <File className="h-6 w-6 text-[#3674B5]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl font-semibold text-gray-900 truncate">
+                  {documentData.title}
+                </h1>
+                <p className="text-gray-500 text-xs truncate mt-0.5">
+                  {documentData.originalFilename}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {getStatusBadge(documentData.status)}
+                {documentData.pdfPath && (
+                  <span className="text-xs bg-[#A1E3F9] text-[#3674B5] px-2 py-1 rounded font-medium">
+                    PDF ✓
+                  </span>
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Progress Monitoring Card - Large & Clear */}
-        {(document.status === 'PROCESSING' || document.status === 'ANALYZING') && (
-          <Card className="mb-6 shadow-sm border-2 border-gray-300 bg-white rounded-xl">
-            <CardContent className="pt-8 pb-8">
-              <div className="text-center mb-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-200 rounded-full mb-4">
-                  <Zap className="h-8 w-8 text-gray-600" />
-                </div>
-                <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-                  Sedang Diproses
-                </h2>
-                <p className="text-gray-600">
-                  Mohon tunggu, dokumen Anda sedang diproses secara otomatis
-                </p>
-              </div>
-
+        {/* Progress Monitoring Card - Compact */}
+        {(documentData.status === 'PROCESSING' || documentData.status === 'ANALYZING') && (
+          <Card className="mb-6 shadow-sm border border-blue-200 bg-blue-50 rounded-xl">
+            <CardContent className="pt-4 pb-4">
               {processingProgress ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between px-4">
-                    <p className="text-lg font-medium text-gray-800">
-                      {processingProgress.message || 'Memproses dokumen...'}
-                    </p>
-                    <span className="text-3xl font-semibold text-gray-900">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <Clock className="h-5 w-5 text-blue-600 animate-spin" style={{ animationDuration: '3s' }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-blue-900">
+                          {processingProgress.message || 'Memproses dokumen...'}
+                        </p>
+                        <p className="text-xs text-blue-600">Halaman akan diperbarui otomatis</p>
+                      </div>
+                    </div>
+                    <span className="text-2xl font-bold text-blue-900">
                       {processingProgress.percent || 0}%
                     </span>
                   </div>
 
-                  <div className="w-full bg-[#A1E3F9] rounded-full h-6">
+                  <div className="w-full bg-blue-200 rounded-full h-2">
                     <div
-                      className="bg-[#3674B5] h-6 rounded-full transition-all duration-500 ease-out flex items-center justify-end px-3"
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
                       style={{
                         width: `${processingProgress.percent || 0}%`,
                       }}
-                    >
-                      {processingProgress.percent > 10 && (
-                        <span className="text-white font-medium text-xs">
-                          {processingProgress.percent}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4 mt-6 text-center">
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <p className="text-xs text-gray-500 uppercase font-medium">Status</p>
-                      <p className="text-base font-semibold text-gray-900">
-                        {processingProgress.state || 'PROCESSING'}
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <p className="text-xs text-gray-500 uppercase font-medium">Progress</p>
-                      <p className="text-base font-semibold text-gray-900">
-                        {processingProgress.current || 0}/{processingProgress.total || 13} Steps
-                      </p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <p className="text-xs text-gray-500 uppercase font-medium">Estimasi</p>
-                      <p className="text-base font-semibold text-gray-900">
-                        ~{Math.round((100 - (processingProgress.percent || 0)) / 10)} menit
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-100 border-l-4 border-gray-600 p-4 mt-6 rounded-md">
-                    <div className="flex items-start">
-                      <Clock className="h-5 w-5 text-gray-600 mr-3 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">Halaman ini akan diperbarui otomatis</p>
-                        <p className="text-xs text-gray-600 mt-1">
-                          Anda tidak perlu me-refresh halaman. Progress akan ter-update setiap 2 detik.
-                        </p>
-                      </div>
-                    </div>
+                    />
                   </div>
                 </div>
               ) : (
-                <div className="text-center space-y-4">
-                  <div className="flex items-center justify-center space-x-2">
-                    <div className="w-3 h-3 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-3 h-3 bg-gray-700 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-3 h-3 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <div className="flex items-center justify-center space-x-3 py-2">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                   </div>
-                  <p className="text-gray-600">Menghubungkan ke server processing...</p>
+                  <p className="text-sm text-blue-700">Menghubungkan ke server...</p>
                 </div>
               )}
             </CardContent>
@@ -430,177 +384,164 @@ export default function DocumentDetailPage() {
         )}
 
         {/* Document Info */}
-        <Card className="mb-6 shadow-sm border border-gray-200 rounded-xl">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">Informasi Dokumen</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600">Ukuran File</p>
-                  <p className="text-base font-medium text-gray-900">
-                    {formatFileSize(document.fileSize)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Tanggal Upload</p>
-                  <p className="text-base font-medium text-gray-900">
-                    {formatDate(document.createdAt)}
-                  </p>
-                </div>
+        <Card className="mb-4 shadow-sm border border-gray-200 rounded-xl">
+          <CardContent className="pt-4 pb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-xs text-gray-500">Ukuran File</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {formatFileSize(documentData.fileSize)}
+                </p>
               </div>
-
-              {document.analysis && (
-                <div className="space-y-4">
+              <div>
+                <p className="text-xs text-gray-500">Tanggal Upload</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {new Date(documentData.createdAt).toLocaleDateString('id-ID', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                  })}
+                </p>
+              </div>
+              {documentData.analysis && (
+                <>
                   <div>
-                    <p className="text-sm text-gray-600">Bendera Ditemukan</p>
-                    <p className="text-base font-medium text-gray-900">
-                      {document.analysis.flagCount}
+                    <p className="text-xs text-gray-500">Bendera</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {documentData.analysis.flagCount}
                     </p>
                   </div>
-                  {document.analysis.similarityScore !== undefined && (
+                  {documentData.analysis.similarityScore !== undefined && (
                     <div>
-                      <p className="text-sm text-gray-600">Skor Similaritas</p>
-                      <p className="text-base font-medium text-gray-900">
-                        {document.analysis.similarityScore.toFixed(1)}%
+                      <p className="text-xs text-gray-500">Similaritas</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {documentData.analysis.similarityScore.toFixed(1)}%
                       </p>
                     </div>
                   )}
-                </div>
+                </>
               )}
             </div>
           </CardContent>
         </Card>
 
         {/* Files Section */}
-        <Card className="mb-6 shadow-sm border border-gray-200 rounded-xl">
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold flex items-center">
-              <FileText className="h-5 w-5 mr-2 text-gray-600" />
+        <Card className="mb-4 shadow-sm border border-gray-200 rounded-xl">
+          <CardContent className="pt-4 pb-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+              <FileText className="h-4 w-4 mr-1.5" />
               File Dokumen
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {/* DOCX File */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <div className="flex items-center space-x-3 flex-1">
-                <div className="w-10 h-10 bg-[#D1F8EF] rounded-lg flex items-center justify-center flex-shrink-0">
-                  <File className="h-5 w-5 text-[#3674B5]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate">
-                    {document.originalFilename}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {formatFileSize(document.fileSize)}
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => handleDownload(document.originalFilename)}
-                className="bg-[#3674B5] hover:bg-[#578FCA] text-white ml-2 rounded-lg"
-              >
-                <Download className="h-4 w-4 mr-1" />
-                Download
-              </Button>
-            </div>
-
-            {/* PDF File */}
-            {document.pdfPath && document.pdfFilename && (
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="flex items-center space-x-3 flex-1">
-                  <div className="w-10 h-10 bg-[#D1F8EF] rounded-lg flex items-center justify-center flex-shrink-0">
-                    <File className="h-5 w-5 text-[#3674B5]" />
-                  </div>
+            </h3>
+            <div className="space-y-2">
+              {/* DOCX File */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-3 flex-1 min-w-0">
+                  <File className="h-5 w-5 text-[#3674B5] flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate">
-                      {document.pdfFilename}
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {documentData.originalFilename}
                     </p>
-                    <p className="text-sm text-gray-500">File Turnitin</p>
+                    <p className="text-xs text-gray-500">
+                      {formatFileSize(documentData.fileSize)}
+                    </p>
                   </div>
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => handleDownload(document.pdfFilename!)}
-                  className="bg-[#3674B5] hover:bg-[#578FCA] text-white ml-2 rounded-lg"
+                  onClick={() => handleDownload(documentData.originalFilename)}
+                  className="bg-[#3674B5] hover:bg-[#578FCA] text-white rounded-lg h-8 px-3"
                 >
-                  <Download className="h-4 w-4 mr-1" />
-                  Download
+                  <Download className="h-3 w-3 mr-1" />
+                  <span className="text-xs">Download</span>
                 </Button>
               </div>
-            )}
+
+              {/* PDF File */}
+              {documentData.pdfPath && documentData.pdfFilename && (
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center space-x-3 flex-1 min-w-0">
+                    <File className="h-5 w-5 text-[#3674B5] flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {documentData.pdfFilename}
+                      </p>
+                      <p className="text-xs text-gray-500">File Turnitin</p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => handleDownload(documentData.pdfFilename!)}
+                    className="bg-[#3674B5] hover:bg-[#578FCA] text-white rounded-lg h-8 px-3"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    <span className="text-xs">Download</span>
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         {/* Bypass History */}
-        {document.bypasses && document.bypasses.length > 0 && (
+        {documentData.bypasses && documentData.bypasses.length > 0 && (
           <Card className="shadow-sm border border-gray-200 rounded-xl">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center">
-                <Zap className="h-5 w-5 mr-2 text-gray-600" />
+            <CardContent className="pt-4 pb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                <Zap className="h-4 w-4 mr-1.5" />
                 Riwayat Bypass
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {document.bypasses.map((bypass) => (
+              </h3>
+              <div className="space-y-2">
+                {documentData.bypasses.map((bypass) => (
                   <div
                     key={bypass.id}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
                   >
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">
-                        {bypass.strategy}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {formatDate(bypass.createdAt)}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1 font-mono">
-                        {bypass.outputFilename}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                      {bypass.successRate !== undefined && (
-                        <div className="text-right">
-                          <p className="text-sm text-gray-500">Success Rate</p>
-                          <p className="font-medium text-gray-900">
-                            {bypass.successRate.toFixed(1)}%
-                          </p>
-                        </div>
-                      )}
-                      {bypass.flagsRemoved !== undefined && (
-                        <div className="text-right">
-                          <p className="text-sm text-gray-500">Bendera Dihapus</p>
-                          <p className="font-medium text-gray-900">
-                            {bypass.flagsRemoved}
-                          </p>
-                        </div>
-                      )}
-                      <div className="text-right">
-                        <p className="text-sm text-gray-500">Status</p>
+                    <div className="flex-1 min-w-0 mr-4">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-900">
+                          {bypass.strategy}
+                        </p>
                         {bypass.status === 'COMPLETED' ? (
-                          <p className="font-medium text-green-700">
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">
                             Selesai
-                          </p>
+                          </span>
                         ) : (
-                          <p className="font-medium text-gray-900">
+                          <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-medium">
                             {bypass.status}
-                          </p>
+                          </span>
                         )}
                       </div>
-                      {bypass.status === 'COMPLETED' && bypass.outputFilename && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleDownload(bypass.outputFilename, true)}
-                          className="bg-[#3674B5] hover:bg-[#578FCA] text-white rounded-lg"
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          Download
-                        </Button>
-                      )}
+                      <p className="text-xs text-gray-500 mt-1 truncate">
+                        {new Date(bypass.createdAt).toLocaleDateString('id-ID', {
+                          day: '2-digit',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })} • {bypass.outputFilename}
+                      </p>
+                      <div className="flex gap-3 mt-1">
+                        {bypass.successRate !== undefined && (
+                          <span className="text-xs text-gray-600">
+                            Success: {bypass.successRate.toFixed(1)}%
+                          </span>
+                        )}
+                        {bypass.flagsRemoved !== undefined && (
+                          <span className="text-xs text-gray-600">
+                            Removed: {bypass.flagsRemoved}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    {bypass.status === 'COMPLETED' && bypass.outputFilename && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleDownload(bypass.outputFilename, true)}
+                        className="bg-[#3674B5] hover:bg-[#578FCA] text-white rounded-lg h-8 px-3 flex-shrink-0"
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        <span className="text-xs">Download</span>
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>

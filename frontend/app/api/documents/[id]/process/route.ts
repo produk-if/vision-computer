@@ -6,6 +6,7 @@ import fs from 'fs/promises'
 import path from 'path'
 
 const BACKEND_URL = process.env.PYTHON_API_URL || 'http://localhost:8000'
+const isDev = process.env.NODE_ENV === 'development'
 
 export async function POST(
   request: NextRequest,
@@ -15,6 +16,7 @@ export async function POST(
     const session = await getServerSession(authOptions)
 
     if (!session || !session.user) {
+      if (isDev) console.log('[PROCESS] ❌ Unauthorized - No session')
       return NextResponse.json(
         { error: 'Tidak diizinkan' },
         { status: 401 }
@@ -22,6 +24,7 @@ export async function POST(
     }
 
     const documentId = params.id
+    if (isDev) console.log(`[PROCESS] 🚀 Starting process for document: ${documentId}`)
 
     // Get document
     const document = await prisma.document.findUnique({
@@ -29,27 +32,58 @@ export async function POST(
     })
 
     if (!document) {
+      if (isDev) console.log('[PROCESS] ❌ Document not found')
       return NextResponse.json(
         { error: 'Dokumen tidak ditemukan' },
         { status: 404 }
       )
     }
 
+    if (isDev) console.log(`[PROCESS] ✓ Document found: ${document.title}`)
+
     // Verify ownership
     if (document.userId !== session.user.id && session.user.role !== 'ADMIN') {
+      if (isDev) console.log('[PROCESS] ❌ Access denied - Not owner')
       return NextResponse.json(
         { error: 'Anda tidak memiliki akses ke dokumen ini' },
         { status: 403 }
       )
     }
 
+    // ===== CHECK APPROVAL STATUS =====
+    if (document.requiresApproval && document.approvalStatus !== 'APPROVED') {
+      if (isDev) console.log(`[PROCESS] ⏳ Document requires approval - Status: ${document.approvalStatus}`)
+
+      let message = 'Dokumen ini memerlukan persetujuan admin sebelum dapat diproses.'
+
+      if (document.approvalStatus === 'REJECTED') {
+        message = `Dokumen ditolak oleh admin. Alasan: ${document.rejectionReason || 'Tidak ada alasan'}`
+      } else if (document.approvalStatus === 'PENDING') {
+        message = 'Dokumen sedang menunggu persetujuan admin. Mohon tunggu hingga admin menyetujui dokumen Anda.'
+      }
+
+      return NextResponse.json(
+        {
+          error: 'Approval required',
+          message,
+          requiresApproval: true,
+          approvalStatus: document.approvalStatus,
+        },
+        { status: 403 }
+      )
+    }
+    // ===== END CHECK APPROVAL STATUS =====
+
     // Check if document has both DOCX and PDF
     if (!document.uploadPath || (!document.pdfPath && !document.uploadPath)) {
+      if (isDev) console.log('[PROCESS] ❌ Missing files - DOCX or PDF not found')
       return NextResponse.json(
         { error: 'Dokumen harus memiliki file DOCX dan PDF Turnitin untuk diproses' },
         { status: 400 }
       )
     }
+
+    if (isDev) console.log(`[PROCESS] ✓ Files check passed - DOCX: ${document.uploadPath}, PDF: ${document.pdfPath}`)
 
     // Update document status to ANALYZING
     await prisma.document.update({
@@ -59,6 +93,8 @@ export async function POST(
         jobStartedAt: new Date(),
       },
     })
+
+    if (isDev) console.log('[PROCESS] ✓ Status updated to ANALYZING')
 
     // Prepare file paths
     const uploadsDir = path.join(process.cwd(), 'uploads', 'documents')
@@ -71,10 +107,14 @@ export async function POST(
     // Check if files exist
     try {
       await fs.access(docxPath)
+      if (isDev) console.log(`[PROCESS] ✓ DOCX file exists: ${docxPath}`)
+
       if (pdfPath) {
         await fs.access(pdfPath)
+        if (isDev) console.log(`[PROCESS] ✓ PDF file exists: ${pdfPath}`)
       }
-    } catch {
+    } catch (error) {
+      if (isDev) console.log(`[PROCESS] ❌ File not found on disk: ${error}`)
       await prisma.document.update({
         where: { id: documentId },
         data: { status: 'FAILED' },
@@ -111,6 +151,8 @@ export async function POST(
     }
 
     // Call backend API
+    if (isDev) console.log(`[PROCESS] 📡 Calling backend: ${BACKEND_URL}/jobs/process-document`)
+
     const backendResponse = await fetch(`${BACKEND_URL}/jobs/process-document`, {
       method: 'POST',
       body: formData,
@@ -119,9 +161,11 @@ export async function POST(
       },
     })
 
+    if (isDev) console.log(`[PROCESS] 📡 Backend response status: ${backendResponse.status}`)
+
     if (!backendResponse.ok) {
       const error = await backendResponse.text()
-      console.error('[BACKEND_ERROR]', error)
+      console.error('[PROCESS] ❌ Backend error:', error)
 
       await prisma.document.update({
         where: { id: documentId },
@@ -137,6 +181,8 @@ export async function POST(
     const backendData = await backendResponse.json()
     const jobId = backendData.job_id || backendData.task_id
 
+    if (isDev) console.log(`[PROCESS] ✓ Backend response received - Job ID: ${jobId}`)
+
     // Save jobId to database for admin monitoring
     await prisma.document.update({
       where: { id: documentId },
@@ -145,6 +191,8 @@ export async function POST(
         jobId: jobId,
       },
     })
+
+    if (isDev) console.log(`[PROCESS] ✅ Process completed successfully - Document status: PROCESSING`)
 
     return NextResponse.json({
       success: true,
@@ -156,7 +204,14 @@ export async function POST(
       },
     })
   } catch (error: any) {
-    console.error('[DOCUMENT_PROCESS_ERROR]', error)
+    if (isDev) {
+      console.error('[PROCESS] ❌ Fatal error:', error)
+      console.error('[PROCESS] Error details:', {
+        message: error.message,
+        cause: error.cause,
+        stack: error.stack
+      })
+    }
 
     // Try to update status to FAILED
     try {
@@ -164,7 +219,7 @@ export async function POST(
         where: { id: params.id },
         data: { status: 'FAILED' },
       })
-    } catch {}
+    } catch { }
 
     return NextResponse.json(
       { error: 'Gagal memproses dokumen', details: error.message },

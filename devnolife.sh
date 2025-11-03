@@ -77,6 +77,8 @@ show_menu() {
     echo ""
     echo -e "  ${YELLOW}${BOLD}[5]${NC} ⏸️  ${WHITE}Stop Backend Services${NC}        ${DIM}Stop all backend services${NC}"
     echo -e "  ${YELLOW}${BOLD}[6]${NC} 🔄 ${WHITE}Restart Backend Services${NC}     ${DIM}Restart all backend services${NC}"
+    echo -e "  ${YELLOW}${BOLD}[14]${NC} 🔄 ${WHITE}Restart Redis Only${NC}           ${DIM}Restart Redis without other services${NC}"
+    echo -e "  ${YELLOW}${BOLD}[15]${NC} 🔄 ${WHITE}Restart Celery Workers Only${NC}  ${DIM}Restart Celery without other services${NC}"
     echo ""
     echo -e "  ${BLUE}${BOLD}[7]${NC} 📊 ${WHITE}Check Status${NC}                  ${DIM}View service status${NC}"
     echo -e "  ${BLUE}${BOLD}[8]${NC} 📋 ${WHITE}View Logs${NC}                     ${DIM}Real-time logs monitoring${NC}"
@@ -153,11 +155,52 @@ check_running() {
 
 start_redis() {
     echo -e "${BOLD}${BLUE}[1/3] 🚀 Starting Redis Server...${NC}"
+    
+    # Check if Redis is already running by checking the actual process
+    if pgrep -x "redis-server" > /dev/null 2>&1; then
+        local existing_pid=$(pgrep -x "redis-server" | head -1)
+        
+        # Check if it's responding
+        if redis-cli ping > /dev/null 2>&1; then
+            echo -e "${GREEN}${BOLD}      ✅ Redis is already running ${NC}${DIM}(PID: $existing_pid)${NC}"
+            echo -e "${DIM}      Using existing Redis instance${NC}"
+            # Save PID to file for tracking
+            echo $existing_pid > "$REDIS_PID_FILE"
+            return 0
+        else
+            # Redis process exists but not responding, kill it
+            echo -e "${YELLOW}${BOLD}      ⚠️  Found stale Redis process, cleaning up...${NC}"
+            kill -9 $existing_pid 2>/dev/null || true
+            sleep 1
+        fi
+    fi
+    
     if check_running "$REDIS_PID_FILE" "Redis"; then
         return 0
     fi
 
-    nohup redis-server > "$REDIS_LOG" 2>&1 &
+    # Check for incompatible dump.rdb file
+    if [ -f "$PROJECT_ROOT/dump.rdb" ]; then
+        # Try to detect if dump.rdb is incompatible
+        if redis-server --test-memory 1 > /dev/null 2>&1; then
+            # Redis is working, test if dump.rdb can be loaded
+            redis-server --dir "$PROJECT_ROOT" --dbfilename dump.rdb --port 0 --save "" > /tmp/redis-test.log 2>&1 &
+            local test_pid=$!
+            sleep 0.5
+            
+            if grep -q "Can't handle RDB format version" /tmp/redis-test.log 2>/dev/null; then
+                kill -9 $test_pid 2>/dev/null || true
+                echo -e "${YELLOW}${BOLD}      ⚠️  Incompatible Redis database file detected${NC}"
+                echo -e "${DIM}      Backing up old dump.rdb...${NC}"
+                mv "$PROJECT_ROOT/dump.rdb" "$PROJECT_ROOT/dump.rdb.backup-incompatible-$(date +%s)"
+                echo -e "${GREEN}      ✓ Backup created, starting with fresh database${NC}"
+            else
+                kill -9 $test_pid 2>/dev/null || true
+            fi
+        fi
+    fi
+
+    nohup redis-server --dir "$PROJECT_ROOT" --logfile "$REDIS_LOG" > "$REDIS_LOG" 2>&1 &
     echo $! > "$REDIS_PID_FILE"
 
     echo -ne "${DIM}      Loading"
@@ -169,7 +212,40 @@ start_redis() {
     sleep 0.5
 
     if ps -p $(cat "$REDIS_PID_FILE") > /dev/null 2>&1; then
-        echo -e "${GREEN}${BOLD}      ✅ Redis started successfully ${NC}${DIM}(PID: $(cat $REDIS_PID_FILE))${NC}"
+        # Verify Redis is actually responding
+        if redis-cli ping > /dev/null 2>&1; then
+            echo -e "${GREEN}${BOLD}      ✅ Redis started successfully ${NC}${DIM}(PID: $(cat $REDIS_PID_FILE))${NC}"
+        else
+            echo -e "${YELLOW}${BOLD}      ⚠️  Redis started but not responding, checking logs...${NC}"
+            
+            # Check if RDB format error
+            if grep -q "Can't handle RDB format version" "$REDIS_LOG" 2>/dev/null; then
+                echo -e "${YELLOW}      Incompatible database file, cleaning up...${NC}"
+                kill -9 $(cat "$REDIS_PID_FILE") 2>/dev/null || true
+                rm -f "$REDIS_PID_FILE"
+                
+                # Backup and retry
+                if [ -f "$PROJECT_ROOT/dump.rdb" ]; then
+                    mv "$PROJECT_ROOT/dump.rdb" "$PROJECT_ROOT/dump.rdb.backup-$(date +%s)"
+                fi
+                
+                # Retry start
+                nohup redis-server --dir "$PROJECT_ROOT" --logfile "$REDIS_LOG" > "$REDIS_LOG" 2>&1 &
+                echo $! > "$REDIS_PID_FILE"
+                sleep 1
+                
+                if redis-cli ping > /dev/null 2>&1; then
+                    echo -e "${GREEN}${BOLD}      ✅ Redis started successfully with fresh database ${NC}${DIM}(PID: $(cat $REDIS_PID_FILE))${NC}"
+                else
+                    echo -e "${RED}${BOLD}      ❌ Failed to start Redis${NC}"
+                    return 1
+                fi
+            else
+                echo -e "${RED}${BOLD}      ❌ Failed to start Redis${NC}"
+                echo -e "${DIM}      Check log: $REDIS_LOG${NC}"
+                return 1
+            fi
+        fi
     else
         echo -e "${RED}${BOLD}      ❌ Failed to start Redis${NC}"
         return 1
@@ -682,11 +758,96 @@ option_start_backend() {
 
     # Check if redis-server is installed
     if ! command -v redis-server &> /dev/null; then
-        echo -e "${RED}${BOLD}❌ Redis not found. Please install redis-server first${NC}"
-        echo -e "${DIM}Ubuntu/Debian: sudo apt-get install redis-server${NC}"
-        echo -e "${DIM}macOS: brew install redis${NC}"
-        press_enter
-        return
+        echo -e "${YELLOW}${BOLD}📦 Redis not found. Installing automatically...${NC}"
+        echo ""
+        
+        # Auto-install Redis based on OS
+        if command -v apt-get &> /dev/null; then
+            echo -e "${CYAN}${BOLD}🔧 Detected Ubuntu/Debian system${NC}"
+            echo -e "${DIM}Installing redis-server via apt...${NC}"
+            echo ""
+            sudo apt-get update -qq
+            sudo apt-get install -y redis-server
+            
+            if [ $? -eq 0 ]; then
+                log_success "Redis installed successfully"
+                echo ""
+                
+                # Clean up old incompatible dump.rdb if exists
+                if [ -f "$PROJECT_ROOT/dump.rdb" ]; then
+                    echo -e "${YELLOW}${BOLD}🧹 Backing up old Redis database file...${NC}"
+                    mv "$PROJECT_ROOT/dump.rdb" "$PROJECT_ROOT/dump.rdb.backup-$(date +%s)" 2>/dev/null
+                    echo -e "${DIM}Old dump.rdb backed up${NC}"
+                    echo ""
+                fi
+            else
+                log_error "Failed to install Redis"
+                press_enter
+                return
+            fi
+        elif command -v brew &> /dev/null; then
+            echo -e "${CYAN}${BOLD}🔧 Detected macOS system${NC}"
+            echo -e "${DIM}Installing redis via Homebrew...${NC}"
+            echo ""
+            brew install redis
+            
+            if [ $? -eq 0 ]; then
+                log_success "Redis installed successfully"
+                echo ""
+            else
+                log_error "Failed to install Redis"
+                press_enter
+                return
+            fi
+        else
+            log_error "Unsupported OS. Please install Redis manually:"
+            echo -e "${DIM}Ubuntu/Debian: sudo apt-get install redis-server${NC}"
+            echo -e "${DIM}macOS: brew install redis${NC}"
+            press_enter
+            return
+        fi
+    fi
+
+    # Check if OCRmyPDF is installed
+    if ! command -v ocrmypdf &> /dev/null; then
+        echo -e "${YELLOW}${BOLD}📦 OCRmyPDF not found. Installing automatically...${NC}"
+        echo ""
+        
+        # Auto-install OCRmyPDF based on OS
+        if command -v apt-get &> /dev/null; then
+            echo -e "${CYAN}${BOLD}🔧 Installing OCRmyPDF and Tesseract OCR...${NC}"
+            echo -e "${DIM}This is required for PDF text extraction${NC}"
+            echo ""
+            sudo apt-get install -y ocrmypdf tesseract-ocr tesseract-ocr-eng ghostscript
+            
+            if [ $? -eq 0 ]; then
+                log_success "OCRmyPDF and Tesseract installed successfully"
+                echo ""
+            else
+                log_error "Failed to install OCRmyPDF"
+                press_enter
+                return
+            fi
+        elif command -v brew &> /dev/null; then
+            echo -e "${CYAN}${BOLD}🔧 Installing OCRmyPDF and Tesseract OCR...${NC}"
+            echo -e "${DIM}This is required for PDF text extraction${NC}"
+            echo ""
+            brew install ocrmypdf tesseract
+            
+            if [ $? -eq 0 ]; then
+                log_success "OCRmyPDF and Tesseract installed successfully"
+                echo ""
+            else
+                log_error "Failed to install OCRmyPDF"
+                press_enter
+                return
+            fi
+        else
+            log_warning "Cannot install OCRmyPDF automatically on this OS"
+            echo -e "${DIM}Ubuntu/Debian: sudo apt-get install ocrmypdf tesseract-ocr${NC}"
+            echo -e "${DIM}macOS: brew install ocrmypdf tesseract${NC}"
+            echo ""
+        fi
     fi
 
     start_redis
@@ -751,10 +912,74 @@ option_start_all() {
 
     mkdir -p "$LOG_DIR" "$PID_DIR" "$BACKEND_DIR/uploads" "$BACKEND_DIR/outputs" "$BACKEND_DIR/temp"
 
+    # Auto-install Redis if not found
     if ! command -v redis-server &> /dev/null; then
-        echo -e "${RED}${BOLD}❌ Redis not found!${NC}"
-        press_enter
-        return
+        echo -e "${YELLOW}${BOLD}📦 Redis not found. Installing automatically...${NC}"
+        echo ""
+        
+        if command -v apt-get &> /dev/null; then
+            echo -e "${CYAN}${BOLD}🔧 Installing Redis via apt...${NC}"
+            sudo apt-get update -qq && sudo apt-get install -y redis-server
+            
+            if [ $? -eq 0 ]; then
+                log_success "Redis installed successfully"
+                
+                # Clean up old incompatible dump.rdb if exists
+                if [ -f "$PROJECT_ROOT/dump.rdb" ]; then
+                    mv "$PROJECT_ROOT/dump.rdb" "$PROJECT_ROOT/dump.rdb.backup-$(date +%s)" 2>/dev/null
+                fi
+            else
+                log_error "Failed to install Redis"
+                press_enter
+                return
+            fi
+        elif command -v brew &> /dev/null; then
+            echo -e "${CYAN}${BOLD}🔧 Installing Redis via Homebrew...${NC}"
+            brew install redis
+            
+            if [ $? -ne 0 ]; then
+                log_error "Failed to install Redis"
+                press_enter
+                return
+            fi
+        else
+            log_error "Cannot install Redis automatically on this OS"
+            press_enter
+            return
+        fi
+        echo ""
+    fi
+
+    # Auto-install OCRmyPDF if not found
+    if ! command -v ocrmypdf &> /dev/null; then
+        echo -e "${YELLOW}${BOLD}📦 OCRmyPDF not found. Installing automatically...${NC}"
+        echo ""
+        
+        if command -v apt-get &> /dev/null; then
+            echo -e "${CYAN}${BOLD}🔧 Installing OCRmyPDF and Tesseract OCR...${NC}"
+            sudo apt-get install -y ocrmypdf tesseract-ocr tesseract-ocr-eng ghostscript
+            
+            if [ $? -eq 0 ]; then
+                log_success "OCRmyPDF and Tesseract installed successfully"
+            else
+                log_error "Failed to install OCRmyPDF"
+                press_enter
+                return
+            fi
+        elif command -v brew &> /dev/null; then
+            echo -e "${CYAN}${BOLD}🔧 Installing OCRmyPDF and Tesseract OCR...${NC}"
+            brew install ocrmypdf tesseract
+            
+            if [ $? -ne 0 ]; then
+                log_error "Failed to install OCRmyPDF"
+                press_enter
+                return
+            fi
+        else
+            log_warning "Cannot install OCRmyPDF automatically on this OS"
+            echo -e "${DIM}Manual install: sudo apt-get install ocrmypdf tesseract-ocr${NC}"
+        fi
+        echo ""
     fi
 
     start_redis
@@ -1092,6 +1317,175 @@ option_sysinfo() {
     press_enter
 }
 
+option_restart_redis() {
+    show_banner
+    echo -e "${BOLD}${YELLOW}[14] 🔄 Restart Redis Only${NC}"
+    echo -e "${BOLD}${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    echo -e "${BOLD}${RED}[1/2] 🛑 Stopping Redis...${NC}"
+    echo ""
+
+    # Stop all Redis instances
+    if pgrep -x "redis-server" > /dev/null 2>&1; then
+        local redis_pids=$(pgrep -x "redis-server")
+        for pid in $redis_pids; do
+            echo -e "${BOLD}${BLUE}      🛑 Stopping Redis ${NC}${DIM}(PID: $pid)${NC}"
+            
+            # Try graceful shutdown first
+            redis-cli shutdown 2>/dev/null || true
+            sleep 1
+            
+            # Force kill if still running
+            if ps -p $pid > /dev/null 2>&1; then
+                kill -9 $pid 2>/dev/null || true
+                echo -e "${YELLOW}${BOLD}         ⚡ Force killed Redis${NC}"
+            fi
+        done
+        
+        # Clean up PID file
+        rm -f "$REDIS_PID_FILE"
+        
+        echo -e "${GREEN}${BOLD}      ✅ Redis stopped successfully${NC}"
+    else
+        echo -e "${YELLOW}${BOLD}      ⚠️  Redis is not running${NC}"
+    fi
+
+    echo ""
+    echo -e "${BOLD}${BLUE}⏳ Waiting for cleanup...${NC}"
+    echo -ne "${DIM}   "
+    for i in {2..1}; do
+        echo -ne "$i... "
+        sleep 1
+    done
+    echo -e "Ready!${NC}"
+    echo ""
+
+    echo -e "${BOLD}${GREEN}[2/2] 🚀 Starting Redis...${NC}"
+    echo ""
+
+    mkdir -p "$LOG_DIR" "$PID_DIR"
+    start_redis
+
+    echo ""
+    echo -e "${BOLD}${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${GREEN}${BOLD}   🎊 REDIS RESTART COMPLETED! 🎊${NC}"
+    echo ""
+    
+    # Show Redis status
+    if redis-cli ping > /dev/null 2>&1; then
+        echo -e "${BOLD}${CYAN}📊 Redis Status:${NC}"
+        echo -e "${DIM}├─${NC} ${BLUE}Status${NC}         ${GREEN}✓ RUNNING${NC}"
+        echo -e "${DIM}├─${NC} ${BLUE}Connection${NC}     ${GREEN}✓ RESPONDING${NC}"
+        echo -e "${DIM}├─${NC} ${BLUE}Port${NC}           ${CYAN}6379${NC}"
+        echo -e "${DIM}└─${NC} ${BLUE}PID${NC}            ${CYAN}$(cat $REDIS_PID_FILE 2>/dev/null || echo 'N/A')${NC}"
+    else
+        echo -e "${RED}${BOLD}❌ Redis is not responding!${NC}"
+    fi
+    
+    echo ""
+    press_enter
+}
+
+option_restart_celery() {
+    show_banner
+    echo -e "${BOLD}${YELLOW}[15] 🔄 Restart Celery Workers Only${NC}"
+    echo -e "${BOLD}${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+
+    echo -e "${BOLD}${RED}[1/2] 🛑 Stopping Celery Workers...${NC}"
+    echo ""
+
+    # Stop Celery via PID file
+    if [ -f "$WORKER_PID_FILE" ]; then
+        local celery_pid=$(cat "$WORKER_PID_FILE")
+        
+        if ps -p $celery_pid > /dev/null 2>&1; then
+            echo -e "${BOLD}${YELLOW}      🛑 Stopping Celery Workers ${NC}${DIM}(PID: $celery_pid)${NC}"
+            
+            # Try graceful shutdown first
+            kill -TERM $celery_pid 2>/dev/null || true
+            
+            local count=0
+            echo -ne "${DIM}         Waiting"
+            while ps -p $celery_pid > /dev/null 2>&1 && [ $count -lt 10 ]; do
+                sleep 0.5
+                echo -ne "."
+                count=$((count + 1))
+            done
+            echo -e "${NC}"
+            
+            # Force kill if still running
+            if ps -p $celery_pid > /dev/null 2>&1; then
+                kill -9 $celery_pid 2>/dev/null || true
+                echo -e "${YELLOW}${BOLD}         ⚡ Force killed Celery${NC}"
+            fi
+        fi
+        
+        rm -f "$WORKER_PID_FILE"
+        echo -e "${GREEN}${BOLD}      ✅ Celery Workers stopped successfully${NC}"
+    else
+        echo -e "${YELLOW}${BOLD}      ⚠️  Celery Workers not running ${NC}${DIM}(no PID file)${NC}"
+    fi
+    
+    # Also cleanup any orphaned celery processes
+    if pgrep -f "celery.*worker" > /dev/null 2>&1; then
+        echo -e "${YELLOW}${BOLD}      🧹 Cleaning up orphaned Celery processes...${NC}"
+        pkill -9 -f "celery.*worker" 2>/dev/null || true
+        sleep 1
+    fi
+
+    echo ""
+    echo -e "${BOLD}${BLUE}⏳ Waiting for cleanup...${NC}"
+    echo -ne "${DIM}   "
+    for i in {3..1}; do
+        echo -ne "$i... "
+        sleep 1
+    done
+    echo -e "Ready!${NC}"
+    echo ""
+
+    echo -e "${BOLD}${GREEN}[2/2] 🚀 Starting Celery Workers...${NC}"
+    echo ""
+
+    mkdir -p "$LOG_DIR" "$PID_DIR"
+    
+    # Check Redis first
+    if ! redis-cli ping > /dev/null 2>&1; then
+        echo -e "${RED}${BOLD}      ❌ Redis is not running!${NC}"
+        echo -e "${YELLOW}      Celery requires Redis to be running.${NC}"
+        echo -e "${DIM}      Please start Redis first (option 14 or 2)${NC}"
+        echo ""
+        press_enter
+        return
+    fi
+    
+    start_celery
+
+    echo ""
+    echo -e "${BOLD}${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${GREEN}${BOLD}   🎊 CELERY RESTART COMPLETED! 🎊${NC}"
+    echo ""
+    
+    # Show Celery status
+    if [ -f "$WORKER_PID_FILE" ] && ps -p $(cat "$WORKER_PID_FILE") > /dev/null 2>&1; then
+        echo -e "${BOLD}${CYAN}📊 Celery Workers Status:${NC}"
+        echo -e "${DIM}├─${NC} ${YELLOW}Status${NC}         ${GREEN}✓ RUNNING${NC}"
+        echo -e "${DIM}├─${NC} ${YELLOW}PID${NC}            ${CYAN}$(cat $WORKER_PID_FILE)${NC}"
+        echo -e "${DIM}├─${NC} ${YELLOW}Concurrency${NC}    ${CYAN}4 workers${NC}"
+        echo -e "${DIM}├─${NC} ${YELLOW}Pool${NC}           ${CYAN}prefork${NC}"
+        echo -e "${DIM}└─${NC} ${YELLOW}Queues${NC}         ${CYAN}unified, analysis, matching, bypass${NC}"
+    else
+        echo -e "${RED}${BOLD}❌ Celery Workers failed to start!${NC}"
+        echo -e "${DIM}Check log: $WORKER_LOG${NC}"
+    fi
+    
+    echo ""
+    press_enter
+}
+
 # ═══════════════════════════════════════════════════════════════════
 # MAIN LOOP
 # ═══════════════════════════════════════════════════════════════════
@@ -1118,6 +1512,8 @@ main() {
             11) option_database ;;
             12) option_docs ;;
             13) option_sysinfo ;;
+            14) option_restart_redis ;;
+            15) option_restart_celery ;;
             0)
                 show_banner
                 echo -e "${GREEN}${BOLD}👋 Thank you for using Anti-Plagiasi System!${NC}"
@@ -1128,7 +1524,7 @@ main() {
                 ;;
             *)
                 echo ""
-                echo -e "${RED}${BOLD}❌ Invalid option. Please choose 0-13.${NC}"
+                echo -e "${RED}${BOLD}❌ Invalid option. Please choose 0-15.${NC}"
                 sleep 2
                 ;;
         esac

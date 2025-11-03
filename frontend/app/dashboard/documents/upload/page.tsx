@@ -158,6 +158,15 @@ export default function UploadDocumentPage() {
       return
     }
 
+    if (!selectedPdfFile) {
+      toast({
+        variant: 'warning',
+        title: 'Peringatan',
+        description: 'Harap pilih file PDF Turnitin',
+      })
+      return
+    }
+
     setUploading(true)
 
     try {
@@ -206,58 +215,45 @@ export default function UploadDocumentPage() {
 
       const documentId = documentData.data.id
 
-      // Trigger background processing
-      if (selectedPdfFile && documentId) {
-        try {
-          const processResponse = await fetch(`/api/documents/${documentId}/process`, {
-            method: 'POST',
-          })
-
-          if (processResponse.ok) {
-            const processData = await processResponse.json()
-
-            // Save jobId to localStorage for progress tracking
-            if (processData.data?.jobId) {
-              localStorage.setItem(`doc-job-${documentId}`, processData.data.jobId)
-            }
-
-            toast({
-              variant: 'success',
-              title: 'Proses Dimulai',
-              description: 'Redirecting ke halaman progress monitoring...',
-            })
-
-            // Redirect to document detail page to show progress
-            setTimeout(() => {
-              router.push(`/dashboard/documents/${documentId}`)
-            }, 800)
-          } else {
-            throw new Error('Gagal memulai proses')
-          }
-        } catch (processError) {
-          console.error('Error triggering process:', processError)
-          toast({
-            variant: 'warning',
-            title: 'Upload Berhasil',
-            description: 'Dokumen berhasil diupload, tapi gagal memulai proses otomatis.',
-          })
-
-          // Still redirect to document page
-          setTimeout(() => {
-            router.push(`/dashboard/documents/${documentId}`)
-          }, 1500)
-        }
-      } else {
-        // No PDF, just redirect to documents list
-        toast({
-          variant: 'success',
-          title: 'Berhasil',
-          description: 'Dokumen berhasil diupload',
+      // Trigger background processing (PDF is now required)
+      try {
+        const processResponse = await fetch(`/api/documents/${documentId}/process`, {
+          method: 'POST',
         })
 
+        if (processResponse.ok) {
+          const processData = await processResponse.json()
+
+          // Save jobId to localStorage for progress tracking
+          if (processData.data?.jobId) {
+            localStorage.setItem(`doc-job-${documentId}`, processData.data.jobId)
+          }
+
+          toast({
+            variant: 'success',
+            title: 'Proses Dimulai',
+            description: 'Redirecting ke halaman progress monitoring...',
+          })
+
+          // Redirect to document detail page to show progress
+          setTimeout(() => {
+            router.push(`/dashboard/documents/${documentId}`)
+          }, 800)
+        } else {
+          throw new Error('Gagal memulai proses')
+        }
+      } catch (processError) {
+        console.error('Error triggering process:', processError)
+        toast({
+          variant: 'warning',
+          title: 'Upload Berhasil',
+          description: 'Dokumen berhasil diupload, tapi gagal memulai proses otomatis. Silakan coba proses manual dari halaman dokumen.',
+        })
+
+        // Still redirect to document page
         setTimeout(() => {
-          router.push('/dashboard/documents')
-        }, 1000)
+          router.push(`/dashboard/documents/${documentId}`)
+        }, 1500)
       }
     } catch (error) {
       console.error('Upload error:', error)
@@ -300,7 +296,7 @@ export default function UploadDocumentPage() {
               </div>
               <div className="flex-1">
                 <h1 className="text-4xl font-bold text-gray-900 mb-2">Upload Dokumen</h1>
-                <p className="text-gray-600 text-lg">Unggah dokumen Anda untuk dianalisis. Dukung format DOCX dan PDF Turnitin opsional.</p>
+                <p className="text-gray-600 text-lg">Unggah dokumen DOCX original dan PDF hasil Turnitin untuk dianalisis.</p>
               </div>
             </div>
           </div>
@@ -319,11 +315,10 @@ export default function UploadDocumentPage() {
 
             {!selectedDocxFile ? (
               <div
-                className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 cursor-pointer ${
-                  dragActiveDocx
-                    ? 'border-blue-400 bg-blue-50 scale-105'
-                    : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
-                }`}
+                className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 cursor-pointer ${dragActiveDocx
+                  ? 'border-blue-400 bg-blue-50 scale-105'
+                  : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
+                  }`}
                 onDragEnter={handleDragDocx}
                 onDragLeave={handleDragDocx}
                 onDragOver={handleDragDocx}
@@ -393,22 +388,21 @@ export default function UploadDocumentPage() {
             )}
           </div>
 
-          {/* Step 2: PDF File Upload Area (Optional) */}
+          {/* Step 2: PDF File Upload Area (Required) */}
           <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-purple-700 rounded-full flex items-center justify-center text-white font-bold text-sm">2</div>
               <Label className="text-lg font-semibold text-gray-900">
-                File PDF Turnitin <span className="text-gray-500">(Opsional)</span>
+                File PDF Turnitin <span className="text-red-500">*</span>
               </Label>
             </div>
 
             {!selectedPdfFile ? (
               <div
-                className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 cursor-pointer ${
-                  dragActivePdf
-                    ? 'border-purple-400 bg-purple-50 scale-105'
-                    : 'border-gray-200 hover:border-purple-400 hover:bg-purple-50'
-                }`}
+                className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 cursor-pointer ${dragActivePdf
+                  ? 'border-purple-400 bg-purple-50 scale-105'
+                  : 'border-gray-200 hover:border-purple-400 hover:bg-purple-50'
+                  }`}
                 onDragEnter={handleDragPdf}
                 onDragLeave={handleDragPdf}
                 onDragOver={handleDragPdf}
@@ -432,7 +426,7 @@ export default function UploadDocumentPage() {
                 <p className="text-xl font-semibold text-gray-900 mb-2">
                   Drag & drop file PDF
                 </p>
-                <p className="text-gray-500 mb-6">Untuk analisis lebih akurat (opsional)</p>
+                <p className="text-gray-500 mb-6">File hasil Turnitin diperlukan untuk analisis</p>
                 <Button
                   type="button"
                   onClick={() => document.getElementById('pdf-input')?.click()}
@@ -486,7 +480,7 @@ export default function UploadDocumentPage() {
           <div className="flex gap-4 pt-4">
             <Button
               onClick={handleUpload}
-              disabled={!selectedDocxFile || uploading}
+              disabled={!selectedDocxFile || !selectedPdfFile || uploading}
               className="flex-1 h-14 text-base bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {uploading ? (
@@ -495,12 +489,12 @@ export default function UploadDocumentPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Mengupload... {selectedPdfFile && ' (DOCX + PDF)'}
+                  Mengupload DOCX + PDF...
                 </div>
               ) : (
                 <>
                   <Upload className="h-5 w-5 mr-2" />
-                  {selectedDocxFile && selectedPdfFile ? 'Upload Dokumen & PDF' : selectedDocxFile ? 'Upload Dokumen' : 'Upload Dokumen'}
+                  {selectedDocxFile && selectedPdfFile ? 'Upload DOCX + PDF' : 'Upload Dokumen'}
                 </>
               )}
             </Button>
@@ -527,7 +521,7 @@ export default function UploadDocumentPage() {
               </li>
               <li className="flex items-start">
                 <span className="text-amber-600 mr-3 font-bold text-lg">✓</span>
-                <span>File PDF dari Turnitin opsional (untuk analisis lebih akurat)</span>
+                <span>File PDF dari Turnitin <strong>wajib</strong> diunggah untuk analisis</span>
               </li>
               <li className="flex items-start">
                 <span className="text-amber-600 mr-3 font-bold text-lg">✓</span>
@@ -539,7 +533,7 @@ export default function UploadDocumentPage() {
               </li>
               <li className="flex items-start">
                 <span className="text-amber-600 mr-3 font-bold text-lg">✓</span>
-                <span>Setelah upload, dokumen akan dianalisis secara otomatis</span>
+                <span>Setelah upload, kedua dokumen akan dianalisis secara otomatis</span>
               </li>
             </ul>
           </div>
