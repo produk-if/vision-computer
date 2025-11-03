@@ -7,6 +7,7 @@ import {
   requiresAdminApproval
 } from '@/lib/package-access'
 import { isAutoApprovalEnabled } from '@/lib/system-settings'
+import { findDuplicateDocument, createDuplicateDocument } from '@/lib/duplicate-detection'
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +25,7 @@ export async function POST(request: NextRequest) {
       characterCount,
       pdfPath,
       pdfFilename,
+      fileHash, // Hash dari file upload
     } = body
 
     // Validate required fields
@@ -68,6 +70,37 @@ export async function POST(request: NextRequest) {
     console.log(`[PACKAGE_CHECK] ✓ User ${userId} validated for package ${subscription.package.code}`)
     // ===== END PACKAGE ACCESS CONTROL =====
 
+    // ===== DUPLICATE DETECTION =====
+    if (fileHash) {
+      const duplicateCheck = await findDuplicateDocument(fileHash, userId)
+
+      if (duplicateCheck.isDuplicate && duplicateCheck.canReuse) {
+        console.log(`[DUPLICATE] ✓ Found reusable document for hash ${fileHash}`)
+
+        // Create duplicate entry that references the original
+        const duplicateDoc = await createDuplicateDocument(
+          duplicateCheck.originalDocument.id,
+          userId,
+          title
+        )
+
+        // Increment usage counter (user used a slot even though it's duplicate)
+        await incrementDocumentUsage(subscription.id)
+
+        return NextResponse.json({
+          success: true,
+          data: duplicateDoc,
+          isDuplicate: true,
+          originalDocumentId: duplicateCheck.originalDocument.id,
+          message: 'Dokumen yang sama sudah pernah diproses sebelumnya. Hasil dari dokumen sebelumnya akan digunakan.',
+        })
+      } else if (duplicateCheck.isDuplicate && !duplicateCheck.canReuse) {
+        console.log(`[DUPLICATE] ⚠️ Found duplicate but cannot reuse (status: ${duplicateCheck.originalDocument?.status})`)
+        // Continue with normal flow - let admin review
+      }
+    }
+    // ===== END DUPLICATE DETECTION =====
+
     // Check if auto-approval is enabled
     const autoApprovalEnabled = await isAutoApprovalEnabled()
 
@@ -95,6 +128,9 @@ export async function POST(request: NextRequest) {
       // If auto-approval enabled, mark as approved immediately
       approvedAt: autoApprovalEnabled ? new Date() : null,
       approvedBy: autoApprovalEnabled ? 'SYSTEM_AUTO' : null,
+      // Add file hash for duplicate detection
+      fileHash: fileHash || null,
+      isDuplicate: false,
     }
 
     // Add optional PDF fields if provided

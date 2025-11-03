@@ -421,6 +421,11 @@ export default function DocumentsPage() {
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2">
                       {getStatusBadge(doc.status)}
+                      {(doc as any).isDuplicate && (
+                        <span className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded font-medium" title="Dokumen ini menggunakan hasil dari dokumen yang sama yang pernah diproses">
+                          Duplikat
+                        </span>
+                      )}
                       {doc.pdfPath && (
                         <span className="text-xs bg-[#A1E3F9] text-[#3674B5] px-2 py-1 rounded font-medium">
                           PDF ✓

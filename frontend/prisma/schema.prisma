@@ -86,7 +86,8 @@ model UserProfile {
 
   // Academic/Institutional Information
   institution     String?   // Universitas/Sekolah
-  major           String?   // Jurusan
+  faculty         String?   // Fakultas
+  major           String?   // Program Studi/Jurusan
   studentId       String?   // NIM/NIS
 
   // Additional Info
@@ -289,6 +290,13 @@ model Document {
   wordCount          Int?
   characterCount     Int?
 
+  // Duplicate Detection
+  fileHash           String?            // SHA-256 hash dari file untuk deteksi duplikat
+  isDuplicate        Boolean            @default(false)  // Apakah dokumen ini duplikat
+  originalDocumentId String?            // ID dokumen original jika ini duplikat
+  duplicateOf        Document?          @relation("DocumentDuplicates", fields: [originalDocumentId], references: [id], onDelete: SetNull)
+  duplicates         Document[]         @relation("DocumentDuplicates")
+
   // Package & Approval System
   packageCode        String?            // PROPOSAL, HASIL, TUTUP - dari package yang digunakan
   subscriptionId     String?            // Link ke subscription yang digunakan
@@ -309,6 +317,8 @@ model Document {
   @@index([uploadedAt])
   @@index([packageCode])
   @@index([approvalStatus])
+  @@index([fileHash])
+  @@index([isDuplicate])
 }
 
 enum DocumentStatus {

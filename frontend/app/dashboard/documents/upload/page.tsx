@@ -204,6 +204,7 @@ export default function UploadDocumentPage() {
           userId: session?.user?.id,
           pdfPath: uploadData.data.pdfFile?.path || null,
           pdfFilename: uploadData.data.pdfFile?.originalName || null,
+          fileHash: uploadData.data.docxFile.hash || null, // File hash untuk duplicate detection
         }),
       })
 
@@ -211,6 +212,19 @@ export default function UploadDocumentPage() {
 
       if (!documentData.success) {
         throw new Error(documentData.error || 'Gagal membuat record dokumen')
+      }
+
+      // Check if this is a duplicate document
+      if (documentData.isDuplicate) {
+        toast({
+          title: 'Dokumen Duplikat Terdeteksi',
+          description: documentData.message || 'Dokumen yang sama sudah pernah diproses. Hasil sebelumnya akan digunakan.',
+          duration: 5000,
+        })
+
+        // Redirect to document detail
+        router.push('/dashboard/documents')
+        return
       }
 
       const documentId = documentData.data.id

@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
-import { User, Mail, Phone, Building, Save } from 'lucide-react'
+import { User, Mail, Phone, Building, Save, GraduationCap } from 'lucide-react'
+import { Combobox, ComboboxOption } from '@/components/ui/combobox'
+import { UNIVERSITIES, getFaculties, getMajors } from '@/lib/academic-data'
 // import { SessionManager } from '@/components/session-manager' // Hidden - silent monitoring
 
 export default function ProfilePage() {
@@ -21,7 +23,15 @@ export default function ProfilePage() {
     email: session?.user?.email || '',
     phone: '',
     institution: '',
+    faculty: '',
+    major: '',
   })
+
+  // State untuk dropdown akademik
+  const [selectedUniversityId, setSelectedUniversityId] = useState('')
+  const [selectedFacultyId, setSelectedFacultyId] = useState('')
+  const [facultyOptions, setFacultyOptions] = useState<ComboboxOption[]>([])
+  const [majorOptions, setMajorOptions] = useState<ComboboxOption[]>([])
 
   // Load user profile data on mount
   useEffect(() => {
@@ -41,6 +51,8 @@ export default function ProfilePage() {
             fullName: data.data.fullName || prev.fullName,
             phone: data.data.phone || '',
             institution: data.data.institution || '',
+            faculty: data.data.faculty || '',
+            major: data.data.major || '',
           }))
         }
       } catch (error) {
@@ -52,6 +64,39 @@ export default function ProfilePage() {
 
     loadProfile()
   }, [session?.user?.id])
+
+  // Update faculty options when university changes
+  useEffect(() => {
+    if (selectedUniversityId) {
+      const faculties = getFaculties(selectedUniversityId)
+      const options: ComboboxOption[] = faculties.map(f => ({
+        value: f.id,
+        label: f.name
+      }))
+      setFacultyOptions(options)
+      // Reset faculty and major if university changes
+      setSelectedFacultyId('')
+      setMajorOptions([])
+    } else {
+      setFacultyOptions([])
+      setSelectedFacultyId('')
+      setMajorOptions([])
+    }
+  }, [selectedUniversityId])
+
+  // Update major options when faculty changes
+  useEffect(() => {
+    if (selectedUniversityId && selectedFacultyId) {
+      const majors = getMajors(selectedUniversityId, selectedFacultyId)
+      const options: ComboboxOption[] = majors.map(major => ({
+        value: major,
+        label: major
+      }))
+      setMajorOptions(options)
+    } else {
+      setMajorOptions([])
+    }
+  }, [selectedUniversityId, selectedFacultyId])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -83,6 +128,8 @@ export default function ProfilePage() {
           fullName: formData.fullName,
           phone: formData.phone,
           institution: formData.institution,
+          faculty: formData.faculty,
+          major: formData.major,
         }),
       })
 
@@ -208,21 +255,85 @@ export default function ProfilePage() {
                   />
                 </div>
 
-                {/* Institution */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="institution" className="text-xs font-medium text-gray-700 flex items-center">
-                    <Building className="h-3 w-3 mr-1 text-gray-400" />
-                    Institusi / Organisasi
-                  </Label>
-                  <Input
-                    id="institution"
-                    name="institution"
-                    value={formData.institution}
-                    onChange={handleInputChange}
-                    placeholder="Masukkan institusi atau organisasi"
-                    className="h-9 text-sm"
-                    disabled={loading}
-                  />
+                {/* Academic Information */}
+                <div className="pt-3 border-t border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                    <GraduationCap className="h-4 w-4 mr-1.5" />
+                    Informasi Akademik
+                  </h3>
+
+                  {/* University/Institution */}
+                  <div className="space-y-1.5 mb-4">
+                    <Label htmlFor="institution" className="text-xs font-medium text-gray-700">
+                      Nama Universitas / Institusi
+                    </Label>
+                    <Combobox
+                      options={UNIVERSITIES.map(u => ({ value: u.id, label: u.name }))}
+                      value={selectedUniversityId || formData.institution}
+                      onChange={(value) => {
+                        // Check if it's a university ID or custom input
+                        const isUniversityId = UNIVERSITIES.some(u => u.id === value)
+                        if (isUniversityId) {
+                          setSelectedUniversityId(value)
+                          setFormData(prev => ({ ...prev, institution: value }))
+                        } else {
+                          // Custom input
+                          setSelectedUniversityId('')
+                          setFormData(prev => ({ ...prev, institution: value }))
+                        }
+                      }}
+                      placeholder="Pilih atau ketik nama universitas..."
+                      allowCustom={true}
+                      disabled={loading}
+                    />
+                    <p className="text-xs text-gray-500">Pilih dari daftar atau ketik sendiri jika tidak ada</p>
+                  </div>
+
+                  {/* Faculty */}
+                  <div className="space-y-1.5 mb-4">
+                    <Label htmlFor="faculty" className="text-xs font-medium text-gray-700">
+                      Nama Fakultas
+                    </Label>
+                    <Combobox
+                      options={facultyOptions}
+                      value={selectedFacultyId || formData.faculty}
+                      onChange={(value) => {
+                        // Check if it's a faculty ID or custom input
+                        const isFacultyId = facultyOptions.some(f => f.value === value)
+                        if (isFacultyId) {
+                          setSelectedFacultyId(value)
+                          const faculty = facultyOptions.find(f => f.value === value)
+                          setFormData(prev => ({ ...prev, faculty: faculty?.label || value }))
+                        } else {
+                          // Custom input
+                          setSelectedFacultyId('')
+                          setFormData(prev => ({ ...prev, faculty: value }))
+                        }
+                      }}
+                      placeholder={selectedUniversityId ? "Pilih atau ketik nama fakultas..." : "Pilih universitas terlebih dahulu..."}
+                      allowCustom={true}
+                      disabled={loading || (!selectedUniversityId && !formData.institution)}
+                    />
+                    <p className="text-xs text-gray-500">Pilih dari daftar atau ketik sendiri jika tidak ada</p>
+                  </div>
+
+                  {/* Major/Study Program */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="major" className="text-xs font-medium text-gray-700">
+                      Program Studi / Jurusan
+                    </Label>
+                    <Combobox
+                      options={majorOptions}
+                      value={formData.major}
+                      onChange={(value) => {
+                        setFormData(prev => ({ ...prev, major: value }))
+                      }}
+                      placeholder={selectedFacultyId ? "Pilih atau ketik program studi..." : "Pilih fakultas terlebih dahulu..."}
+                      allowCustom={true}
+                      disabled={loading || (!selectedFacultyId && !formData.faculty)}
+                    />
+                    <p className="text-xs text-gray-500">Pilih dari daftar atau ketik sendiri jika tidak ada</p>
+                  </div>
                 </div>
 
                 {/* Save Button */}

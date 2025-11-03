@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const userId = session.user.id
 
     const body = await request.json()
-    const { fullName, phone, institution } = body
+    const { fullName, phone, institution, faculty, major } = body
 
     // Validate required fields
     if (!fullName || !fullName.trim()) {
@@ -39,11 +39,15 @@ export async function POST(request: NextRequest) {
         fullName: fullName.trim(),
         phone: phone?.trim() || null,
         institution: institution?.trim() || null,
+        faculty: faculty?.trim() || null,
+        major: major?.trim() || null,
       },
       update: {
         fullName: fullName.trim(),
         phone: phone?.trim() || null,
         institution: institution?.trim() || null,
+        faculty: faculty?.trim() || null,
+        major: major?.trim() || null,
       },
     })
 
@@ -57,6 +61,8 @@ export async function POST(request: NextRequest) {
         details: {
           fullName,
           institution,
+          faculty,
+          major,
         },
       },
     })

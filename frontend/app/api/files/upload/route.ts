@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
+import { calculateBufferHash } from '@/lib/duplicate-detection'
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,10 +68,13 @@ export async function POST(request: NextRequest) {
       await mkdir(uploadDir, { recursive: true })
     }
 
-    // Helper function to save file
+    // Helper function to save file and calculate hash
     const saveFile = async (file: File) => {
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
+
+      // Calculate file hash for duplicate detection
+      const fileHash = calculateBufferHash(buffer)
 
       const timestamp = Date.now()
       const randomString = Math.random().toString(36).substring(7)
@@ -84,6 +88,7 @@ export async function POST(request: NextRequest) {
         originalName: file.name,
         size: file.size,
         path: `/uploads/documents/${filename}`,
+        hash: fileHash,
       }
     }
 
