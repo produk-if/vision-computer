@@ -42,6 +42,11 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         """
         print(f"🔐 [API-KEY] Request to: {request.method} {request.url.path}")
         
+        # Skip validation untuk OPTIONS request (CORS preflight)
+        if request.method == "OPTIONS":
+            print(f"   ✓ OPTIONS request (CORS preflight) - skipping validation")
+            return await call_next(request)
+        
         # Skip validation untuk excluded paths
         if request.url.path in self.exclude_paths:
             print(f"   ✓ Public endpoint - skipping validation")

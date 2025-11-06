@@ -52,9 +52,9 @@ export default function DocumentDetailPage() {
   const [documentData, setDocumentData] = useState<Document | null>(null)
   const [loading, setLoading] = useState(true)
   const [jobId, setJobId] = useState<string | null>(null)
-  const [processingProgress, setProcessingProgress] = useState<any>(null)
   const [jobResult, setJobResult] = useState<any>(null)
   const [downloading, setDownloading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const documentId = params.id as string
 
@@ -64,22 +64,7 @@ export default function DocumentDetailPage() {
     }
   }, [documentId])
 
-  // Auto-refresh for processing documents
-  useEffect(() => {
-    if (!documentData || documentData.status !== 'PROCESSING' || !jobId) {
-      return
-    }
-
-    // Initial check immediately
-    checkProcessingStatus()
-
-    // Then poll every 5 minutes to avoid overwhelming the server
-    const interval = setInterval(() => {
-      checkProcessingStatus()
-    }, 5 * 60 * 1000) // Check every 5 minutes (300000ms)
-
-    return () => clearInterval(interval)
-  }, [documentData?.status, jobId])
+  // ❌ REMOVED: Auto-refresh - User will manually refresh using button
 
   const fetchDocument = async () => {
     try {
@@ -101,14 +86,12 @@ export default function DocumentDetailPage() {
           console.log('[Document] Found jobId:', activeJobId, 'source:', dbJobId ? 'database' : 'localStorage')
           setJobId(activeJobId)
 
-          // If document is already COMPLETED, fetch result immediately
-          if (data.data.status === 'COMPLETED') {
-            console.log('[Document] Status is COMPLETED, fetching result immediately...')
-            // Set jobId first, then fetch in next tick
-            setTimeout(() => {
-              fetchJobResult()
-            }, 100)
-          }
+          // ✅ ALWAYS fetch result if we have jobId (regardless of status)
+          // Result is persisted in backend and can be fetched anytime
+          console.log('[Document] Fetching result for jobId:', activeJobId)
+          setTimeout(() => {
+            fetchJobResultSilent(activeJobId)
+          }, 100)
         } else {
           console.log('[Document] No jobId found')
         }
@@ -128,63 +111,51 @@ export default function DocumentDetailPage() {
     }
   }
 
-  const checkProcessingStatus = async () => {
-    if (!jobId) {
-      console.warn('[Progress] No jobId available')
-      return
-    }
-
+  const fetchJobResultSilent = async (jobIdToFetch: string) => {
     try {
-      console.log('[Progress] Checking status for jobId:', jobId)
+      console.log('[Result] 📡 Fetching result silently for jobId:', jobIdToFetch)
 
-      const response = await fetch(
-        `/api/documents/${documentId}/process-status?jobId=${jobId}`
-      )
-      const data = await response.json()
+      const pythonApiUrl = process.env.NEXT_PUBLIC_PYTHON_API_URL || 'http://localhost:8000'
+      const apiKey = process.env.NEXT_PUBLIC_PYTHON_API_KEY || ''
 
-      console.log('[Progress] Response:', data)
+      const response = await fetch(`${pythonApiUrl}/jobs/${jobIdToFetch}/result`, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': apiKey,
+          'Content-Type': 'application/json',
+        },
+      })
 
-      if (data.success) {
-        const { state, progress, result } = data.data
-
-        // Update progress with state info
-        const progressData = {
-          ...progress,
-          state: state,
-          percent: progress?.percent || 0,
-          current: progress?.current || 0,
-          total: progress?.total || 13,
-          message: progress?.message || 'Memproses dokumen...',
-        }
-
-        console.log('[Progress] Setting progress:', progressData)
-        setProcessingProgress(progressData)
-
-        // Refresh document to get updated status
-        if (
-          state === 'SUCCESS' ||
-          state === 'COMPLETED' ||
-          state === 'FAILURE' ||
-          state === 'FAILED'
-        ) {
-          console.log('[Progress] Process complete:', state)
-
-          // Fetch result jika sukses
-          if (state === 'SUCCESS' || state === 'COMPLETED') {
-            await fetchJobResult()
-          }
-
-          setTimeout(() => {
-            fetchDocument()
-            localStorage.removeItem(`doc-job-${documentId}`)
-            setJobId(null)
-          }, 500)
-        }
+      if (response.ok) {
+        const result = await response.json()
+        console.log('[Result] ✅ Got result:', result)
+        setJobResult(result)
       } else {
-        console.error('[Progress] Request failed:', data)
+        console.log('[Result] ⚠️ Result not ready yet or failed:', response.status)
       }
     } catch (error) {
-      console.error('[Progress] Error checking status:', error)
+      console.log('[Result] ⚠️ Error fetching result (might not be ready yet):', error)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      // Fetch document data
+      await fetchDocument()
+
+      toast({
+        title: '✅ Berhasil',
+        description: 'Status dokumen berhasil diperbarui',
+      })
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Gagal',
+        description: 'Gagal memperbarui status',
+      })
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -341,30 +312,30 @@ export default function DocumentDetailPage() {
     switch (status) {
       case 'COMPLETED':
         return (
-          <div className="flex items-center space-x-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium">
-            <CheckCircle className="h-3 w-3" />
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl text-xs font-bold shadow-md">
+            <CheckCircle className="h-3.5 w-3.5" />
             <span>Selesai</span>
           </div>
         )
       case 'PROCESSING':
       case 'ANALYZING':
         return (
-          <div className="flex items-center space-x-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
-            <Clock className="h-3 w-3" />
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl text-xs font-bold shadow-md animate-pulse">
+            <Clock className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: '2s' }} />
             <span>Proses</span>
           </div>
         )
       case 'FAILED':
         return (
-          <div className="flex items-center space-x-1 px-2 py-1 bg-red-50 text-red-700 rounded text-xs font-medium">
-            <AlertCircle className="h-3 w-3" />
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl text-xs font-bold shadow-md">
+            <AlertCircle className="h-3.5 w-3.5" />
             <span>Gagal</span>
           </div>
         )
       default:
         return (
-          <div className="flex items-center space-x-1 px-2 py-1 bg-gray-50 text-gray-700 rounded text-xs font-medium">
-            <Clock className="h-3 w-3" />
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-gray-400 to-gray-600 text-white rounded-xl text-xs font-bold shadow-md">
+            <Clock className="h-3.5 w-3.5" />
             <span>Pending</span>
           </div>
         )
@@ -391,10 +362,13 @@ export default function DocumentDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-8">
+      <div className="min-h-screen flex items-center justify-center p-8 bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-800 mx-auto mb-4"></div>
-          <p className="text-gray-600">Memuat detail dokumen...</p>
+          <div className="relative">
+            <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+            <div className="absolute inset-0 animate-ping rounded-full h-16 w-16 border-2 border-blue-300 opacity-20 mx-auto"></div>
+          </div>
+          <p className="text-gray-700 font-medium mt-4">Memuat detail dokumen...</p>
         </div>
       </div>
     )
@@ -402,20 +376,23 @@ export default function DocumentDetailPage() {
 
   if (!documentData) {
     return (
-      <div className="min-h-screen p-8">
-        <div className="max-w-4xl">
+      <div className="min-h-screen p-8 bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="max-w-5xl mx-auto">
           <Button
             variant="outline"
             onClick={() => router.push('/dashboard/documents')}
-            className="mb-6 rounded-lg"
+            className="mb-6 rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50 transition-all"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Kembali
           </Button>
-          <Card className="shadow-sm border border-gray-200 rounded-xl">
-            <CardContent className="pt-12 pb-12 text-center">
-              <AlertCircle className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600 font-medium">Dokumen tidak ditemukan</p>
+          <Card className="shadow-xl border-0 rounded-2xl bg-white/80 backdrop-blur">
+            <CardContent className="pt-16 pb-16 text-center">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="h-10 w-10 text-gray-400" />
+              </div>
+              <p className="text-gray-700 font-semibold text-lg">Dokumen tidak ditemukan</p>
+              <p className="text-gray-500 text-sm mt-2">Dokumen yang Anda cari tidak tersedia</p>
             </CardContent>
           </Card>
         </div>
@@ -424,37 +401,38 @@ export default function DocumentDetailPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="max-w-4xl">
+    <div className="min-h-screen p-8 bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <div className="max-w-5xl mx-auto">
         {/* Back Button */}
         <Button
           variant="outline"
           onClick={() => router.push('/dashboard/documents')}
-          className="mb-6 rounded-lg"
+          className="mb-6 rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50 transition-all shadow-sm hover:shadow-md"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Kembali ke Dokumen
         </Button>
 
-        {/* Header */}
-        <Card className="mb-4 shadow-sm border border-gray-200 rounded-xl">
-          <CardContent className="pt-5 pb-5">
+        {/* Header - Modern Design */}
+        <Card className="mb-6 shadow-xl border-0 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600">
+          <CardContent className="pt-6 pb-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#D1F8EF] rounded-lg flex items-center justify-center flex-shrink-0">
-                <File className="h-6 w-6 text-[#3674B5]" />
+              <div className="w-16 h-16 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                <File className="h-8 w-8 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-semibold text-gray-900 truncate">
+                <h1 className="text-2xl font-bold text-white truncate drop-shadow-sm">
                   {documentData.title}
                 </h1>
-                <p className="text-gray-500 text-xs truncate mt-0.5">
+                <p className="text-blue-100 text-sm truncate mt-1 flex items-center gap-2">
+                  <FileText className="h-3.5 w-3.5" />
                   {documentData.originalFilename}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 {getStatusBadge(documentData.status)}
                 {documentData.pdfPath && (
-                  <span className="text-xs bg-[#A1E3F9] text-[#3674B5] px-2 py-1 rounded font-medium">
+                  <span className="text-xs bg-white/90 text-blue-700 px-3 py-1.5 rounded-lg font-semibold shadow-md">
                     PDF ✓
                   </span>
                 )}
@@ -465,19 +443,19 @@ export default function DocumentDetailPage() {
 
         {/* Approval Status Banner */}
         {documentData.requiresApproval && documentData.approvalStatus === 'PENDING' && (
-          <Card className="mb-6 shadow-sm border border-yellow-300 bg-yellow-50 rounded-xl">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5 text-yellow-700" fill="currentColor" viewBox="0 0 20 20">
+          <Card className="mb-6 shadow-lg border-0 rounded-2xl overflow-hidden bg-gradient-to-r from-yellow-50 to-orange-50">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-yellow-900 mb-1">
+                  <h3 className="text-base font-bold text-yellow-900 mb-1.5 flex items-center gap-2">
                     ⏳ Menunggu Persetujuan Admin
                   </h3>
-                  <p className="text-xs text-yellow-800 leading-relaxed">
+                  <p className="text-sm text-yellow-800 leading-relaxed">
                     Dokumen Anda sedang dalam antrian persetujuan admin. Proses dokumen akan dimulai secara otomatis setelah admin menyetujui dokumen ini. Anda akan menerima notifikasi setelah dokumen disetujui.
                   </p>
                 </div>
@@ -488,25 +466,25 @@ export default function DocumentDetailPage() {
 
         {/* Rejected Status Banner */}
         {documentData.approvalStatus === 'REJECTED' && (
-          <Card className="mb-6 shadow-sm border border-red-300 bg-red-50 rounded-xl">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5 text-red-700" fill="currentColor" viewBox="0 0 20 20">
+          <Card className="mb-6 shadow-lg border-0 rounded-2xl overflow-hidden bg-gradient-to-r from-red-50 to-pink-50">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-red-900 mb-1">
+                  <h3 className="text-base font-bold text-red-900 mb-1.5">
                     ❌ Dokumen Ditolak
                   </h3>
-                  <p className="text-xs text-red-800 leading-relaxed mb-2">
+                  <p className="text-sm text-red-800 leading-relaxed mb-3">
                     Dokumen Anda telah ditolak oleh admin. Silakan perbaiki dan upload ulang dokumen Anda.
                   </p>
                   {documentData.rejectionReason && (
-                    <div className="mt-2 p-2 bg-red-100 rounded border border-red-200">
-                      <p className="text-xs font-medium text-red-900">Alasan:</p>
-                      <p className="text-xs text-red-800 mt-1">{documentData.rejectionReason}</p>
+                    <div className="mt-3 p-3 bg-white/70 backdrop-blur rounded-xl border border-red-200 shadow-sm">
+                      <p className="text-xs font-semibold text-red-900 mb-1">Alasan Penolakan:</p>
+                      <p className="text-sm text-red-800">{documentData.rejectionReason}</p>
                     </div>
                   )}
                 </div>
@@ -517,19 +495,19 @@ export default function DocumentDetailPage() {
 
         {/* Approved Status Banner */}
         {documentData.approvalStatus === 'APPROVED' && documentData.status === 'PENDING' && (
-          <Card className="mb-6 shadow-sm border border-green-300 bg-green-50 rounded-xl">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg className="w-5 h-5 text-green-700" fill="currentColor" viewBox="0 0 20 20">
+          <Card className="mb-6 shadow-lg border-0 rounded-2xl overflow-hidden bg-gradient-to-r from-green-50 to-emerald-50">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                  <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-green-900 mb-1">
+                  <h3 className="text-base font-bold text-green-900 mb-1.5">
                     ✅ Dokumen Disetujui
                   </h3>
-                  <p className="text-xs text-green-800 leading-relaxed">
+                  <p className="text-sm text-green-800 leading-relaxed">
                     Dokumen Anda telah disetujui oleh admin. Anda dapat memulai proses bypass sekarang.
                   </p>
                 </div>
@@ -538,65 +516,76 @@ export default function DocumentDetailPage() {
           </Card>
         )}
 
-        {/* Progress Monitoring Card - Compact */}
+        {/* Processing Status - Modern */}
         {(documentData.status === 'PROCESSING' || documentData.status === 'ANALYZING') && (
-          <Card className="mb-6 shadow-sm border border-blue-200 bg-blue-50 rounded-xl">
-            <CardContent className="pt-4 pb-4">
-              {processingProgress ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <Clock className="h-5 w-5 text-blue-600 animate-spin" style={{ animationDuration: '3s' }} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-blue-900">
-                          {processingProgress.message || 'Memproses dokumen...'}
-                        </p>
-                        <p className="text-xs text-blue-600">Halaman akan diperbarui otomatis</p>
-                      </div>
-                    </div>
-                    <span className="text-2xl font-bold text-blue-900">
-                      {processingProgress.percent || 0}%
-                    </span>
-                  </div>
-
-                  <div className="w-full bg-blue-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
-                      style={{
-                        width: `${processingProgress.percent || 0}%`,
-                      }}
-                    />
+          <Card className="mb-6 shadow-xl border-0 rounded-2xl overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+            <CardContent className="pt-8 pb-8">
+              <div className="flex flex-col items-center justify-center space-y-5">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full animate-pulse opacity-20 blur-xl"></div>
+                  <div className="relative w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                    <Clock className="h-10 w-10 text-white animate-spin" style={{ animationDuration: '2s' }} />
                   </div>
                 </div>
-              ) : (
-                <div className="flex items-center justify-center space-x-3 py-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                  </div>
-                  <p className="text-sm text-blue-700">Menghubungkan ke server...</p>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-gray-900 mb-2">
+                    🔄 Sedang Memproses Dokumen
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Dokumen Anda sedang dianalisis dan diproses
+                  </p>
                 </div>
-              )}
+                <Button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all"
+                >
+                  {refreshing ? (
+                    <>
+                      <Clock className="h-4 w-4 mr-2 animate-spin" />
+                      Checking...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh Status
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Document Info */}
-        <Card className="mb-4 shadow-sm border border-gray-200 rounded-xl">
-          <CardContent className="pt-4 pb-4">
+        {/* Document Info - Modern Stats Grid */}
+        <Card className="mb-6 shadow-lg border-0 rounded-2xl bg-white/80 backdrop-blur">
+          <CardContent className="pt-6 pb-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-xs text-gray-500">Ukuran File</p>
-                <p className="text-sm font-semibold text-gray-900">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-xs font-medium text-blue-700">Ukuran File</p>
+                </div>
+                <p className="text-lg font-bold text-blue-900">
                   {formatFileSize(documentData.fileSize)}
                 </p>
               </div>
-              <div>
-                <p className="text-xs text-gray-500">Tanggal Upload</p>
-                <p className="text-sm font-semibold text-gray-900">
+              <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-xs font-medium text-purple-700">Tanggal Upload</p>
+                </div>
+                <p className="text-lg font-bold text-purple-900">
                   {new Date(documentData.createdAt).toLocaleDateString('id-ID', {
                     day: '2-digit',
                     month: 'short',
@@ -606,16 +595,30 @@ export default function DocumentDetailPage() {
               </div>
               {documentData.analysis && (
                 <>
-                  <div>
-                    <p className="text-xs text-gray-500">Bendera</p>
-                    <p className="text-sm font-semibold text-gray-900">
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                        </svg>
+                      </div>
+                      <p className="text-xs font-medium text-orange-700">Bendera</p>
+                    </div>
+                    <p className="text-lg font-bold text-orange-900">
                       {documentData.analysis.flagCount}
                     </p>
                   </div>
                   {documentData.analysis.similarityScore !== undefined && (
-                    <div>
-                      <p className="text-xs text-gray-500">Similaritas</p>
-                      <p className="text-sm font-semibold text-gray-900">
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-green-50 to-green-100/50 border border-green-200/50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                        </div>
+                        <p className="text-xs font-medium text-green-700">Similaritas</p>
+                      </div>
+                      <p className="text-lg font-bold text-green-900">
                         {documentData.analysis.similarityScore.toFixed(1)}%
                       </p>
                     </div>
@@ -626,23 +629,28 @@ export default function DocumentDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Files Section */}
-        <Card className="mb-4 shadow-sm border border-gray-200 rounded-xl">
-          <CardContent className="pt-4 pb-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-              <FileText className="h-4 w-4 mr-1.5" />
+        {/* Files Section - Modern */}
+        <Card className="mb-6 shadow-lg border-0 rounded-2xl bg-white/80 backdrop-blur">
+          <CardContent className="pt-5 pb-5">
+            <h3 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <FileText className="h-4 w-4 text-white" />
+              </div>
               File Dokumen
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {/* DOCX File */}
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200/50 hover:shadow-md transition-all">
                 <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <File className="h-5 w-5 text-[#3674B5] flex-shrink-0" />
+                  <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <File className="h-5 w-5 text-blue-600" />
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-semibold text-gray-900 truncate">
                       {documentData.originalFilename}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-600 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
                       {formatFileSize(documentData.fileSize)}
                     </p>
                   </div>
@@ -650,32 +658,37 @@ export default function DocumentDetailPage() {
                 <Button
                   size="sm"
                   onClick={() => handleDownload(documentData.originalFilename)}
-                  className="bg-[#3674B5] hover:bg-[#578FCA] text-white rounded-lg h-8 px-3"
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl h-9 px-4 shadow-md hover:shadow-lg transition-all"
                 >
-                  <Download className="h-3 w-3 mr-1" />
-                  <span className="text-xs">Download</span>
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  <span className="text-xs font-semibold">Download</span>
                 </Button>
               </div>
 
               {/* PDF File */}
               {documentData.pdfPath && documentData.pdfFilename && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200/50 hover:shadow-md transition-all">
                   <div className="flex items-center space-x-3 flex-1 min-w-0">
-                    <File className="h-5 w-5 text-[#3674B5] flex-shrink-0" />
+                    <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <File className="h-5 w-5 text-purple-600" />
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-semibold text-gray-900 truncate">
                         {documentData.pdfFilename}
                       </p>
-                      <p className="text-xs text-gray-500">File Turnitin</p>
+                      <p className="text-xs text-gray-600 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                        File Turnitin
+                      </p>
                     </div>
                   </div>
                   <Button
                     size="sm"
                     onClick={() => handleDownload(documentData.pdfFilename!)}
-                    className="bg-[#3674B5] hover:bg-[#578FCA] text-white rounded-lg h-8 px-3"
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl h-9 px-4 shadow-md hover:shadow-lg transition-all"
                   >
-                    <Download className="h-3 w-3 mr-1" />
-                    <span className="text-xs">Download</span>
+                    <Download className="h-3.5 w-3.5 mr-1.5" />
+                    <span className="text-xs font-semibold">Download</span>
                   </Button>
                 </div>
               )}
@@ -683,73 +696,36 @@ export default function DocumentDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Processing Progress */}
-        {processingProgress && documentData?.status === 'PROCESSING' && (
-          <Card className="shadow-lg border-2 border-blue-200 rounded-2xl bg-gradient-to-br from-blue-50 to-purple-50">
-            <CardContent className="pt-6 pb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900 flex items-center">
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center mr-3 shadow-lg">
-                    <Zap className="h-5 w-5 text-white animate-pulse" />
-                  </div>
-                  Sedang Memproses Dokumen
-                </h3>
-                <span className="text-2xl font-bold text-blue-600">
-                  {processingProgress.percent?.toFixed(0) || 0}%
-                </span>
-              </div>
 
-              {/* Progress Bar */}
-              <div className="relative w-full h-4 bg-gray-200 rounded-full overflow-hidden mb-4 shadow-inner">
-                <div
-                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-full transition-all duration-500 ease-out shadow-lg"
-                  style={{ width: `${processingProgress.percent || 0}%` }}
-                >
-                  <div className="absolute inset-0 bg-white opacity-20 animate-pulse"></div>
-                </div>
-              </div>
 
-              {/* Status Message */}
-              <div className="flex items-center gap-3 text-sm text-gray-700 mb-4">
-                <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
-                <p className="font-medium">{processingProgress.message || 'Memproses dokumen...'}</p>
-              </div>
-
-              {/* Steps Counter */}
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">
-                  Step {processingProgress.current || 0} dari {processingProgress.total || 13}
-                </span>
-                <span className="text-blue-600 font-semibold">
-                  {processingProgress.state || 'PROCESSING'}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Processing Result - Modern Card */}
+        {/* Processing Result - Modern Success Card */}
         {jobResult && documentData?.status === 'COMPLETED' && (
-          <Card className="shadow-xl border-2 border-green-200 rounded-2xl bg-gradient-to-br from-green-50 to-emerald-50 overflow-hidden">
-            <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-                    <CheckCircle className="h-6 w-6 text-green-600" />
+          <Card className="mb-6 shadow-2xl border-0 rounded-3xl overflow-hidden bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600">
+            <CardContent className="pt-8 pb-8">
+              <div className="flex flex-col items-center justify-center space-y-5">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-white/30 rounded-full animate-ping"></div>
+                  <div className="relative w-24 h-24 bg-white/20 backdrop-blur rounded-full flex items-center justify-center shadow-2xl">
+                    <CheckCircle className="h-12 w-12 text-white" />
                   </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">Proses Selesai!</h3>
-                    <p className="text-green-100 text-sm">Dokumen berhasil di-bypass</p>
-                  </div>
+                </div>
+                <div className="text-center">
+                  <h3 className="text-2xl font-bold text-white mb-2 drop-shadow-md">
+                    🎉 Proses Selesai!
+                  </h3>
+                  <p className="text-base text-white/90 font-medium">
+                    Dokumen berhasil diproses dengan sempurna
+                  </p>
                 </div>
                 <Button
                   onClick={handleDownloadResult}
                   disabled={downloading}
-                  className="bg-white hover:bg-green-50 text-green-700 font-semibold shadow-lg hover:shadow-xl transition-all rounded-xl h-12 px-6"
+                  size="lg"
+                  className="bg-white text-green-700 hover:bg-green-50 font-bold px-8 py-6 text-base rounded-2xl shadow-2xl hover:shadow-3xl transition-all transform hover:scale-105"
                 >
                   {downloading ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-green-700 border-t-transparent rounded-full animate-spin mr-2" />
+                      <Clock className="h-5 w-5 mr-2 animate-spin" />
                       Downloading...
                     </>
                   ) : (
@@ -760,265 +736,81 @@ export default function DocumentDetailPage() {
                   )}
                 </Button>
               </div>
-            </div>
-
-            <CardContent className="p-6">
-              {/* Statistics Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100">
-                  <div className="text-3xl font-bold text-blue-600 mb-1">
-                    {jobResult.total_flags}
-                  </div>
-                  <div className="text-xs text-gray-600 font-medium">Total Plagiarism</div>
-                </div>
-                <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100">
-                  <div className="text-3xl font-bold text-green-600 mb-1">
-                    {jobResult.total_matched}
-                  </div>
-                  <div className="text-xs text-gray-600 font-medium">Berhasil Di-bypass</div>
-                </div>
-                <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100">
-                  <div className="text-3xl font-bold text-purple-600 mb-1">
-                    {jobResult.match_percentage?.toFixed(1)}%
-                  </div>
-                  <div className="text-xs text-gray-600 font-medium">Success Rate</div>
-                </div>
-                <div className="bg-white rounded-xl p-4 shadow-md border border-gray-100">
-                  <div className="text-3xl font-bold text-orange-600 mb-1">
-                    {jobResult.total_replacements}
-                  </div>
-                  <div className="text-xs text-gray-600 font-medium">Total Replacements</div>
-                </div>
-              </div>
-
-              {/* Details Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                <div className="flex items-center justify-between p-4 bg-white rounded-xl shadow-sm border border-gray-100">
-                  <span className="text-sm font-medium text-gray-700">File Original:</span>
-                  <span className="text-sm text-gray-900 font-semibold truncate ml-2" title={jobResult.original_filename}>
-                    {jobResult.original_filename}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white rounded-xl shadow-sm border border-gray-100">
-                  <span className="text-sm font-medium text-gray-700">File Turnitin:</span>
-                  <span className="text-sm text-gray-900 font-semibold truncate ml-2" title={jobResult.turnitin_filename}>
-                    {jobResult.turnitin_filename}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white rounded-xl shadow-sm border border-gray-100">
-                  <span className="text-sm font-medium text-gray-700">Total Halaman:</span>
-                  <span className="text-sm text-gray-900 font-semibold">{jobResult.total_pages} halaman</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white rounded-xl shadow-sm border border-gray-100">
-                  <span className="text-sm font-medium text-gray-700">Total Highlights:</span>
-                  <span className="text-sm text-gray-900 font-semibold">{jobResult.total_highlights || 0} highlights</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white rounded-xl shadow-sm border border-gray-100">
-                  <span className="text-sm font-medium text-gray-700">Metode:</span>
-                  <span className="text-sm text-gray-900 font-semibold">{jobResult.method}</span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-white rounded-xl shadow-sm border border-gray-100">
-                  <span className="text-sm font-medium text-gray-700">Document Type:</span>
-                  <span className="text-sm text-gray-900 font-semibold">{jobResult.original_doc_type || 'DOCX'}</span>
-                </div>
-              </div>
-
-              {/* Bypass Settings */}
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl border border-blue-200">
-                  <div className="text-xs text-blue-600 font-medium mb-1">Homoglyph Density</div>
-                  <div className="text-2xl font-bold text-blue-700">
-                    {((jobResult.homoglyph_density || 0.95) * 100).toFixed(0)}%
-                  </div>
-                </div>
-                <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200">
-                  <div className="text-xs text-purple-600 font-medium mb-1">Invisible Density</div>
-                  <div className="text-2xl font-bold text-purple-700">
-                    {((jobResult.invisible_density || 0.40) * 100).toFixed(0)}%
-                  </div>
-                </div>
-              </div>
-
-              {/* Matched vs Unmatched Warning */}
-              {jobResult.total_unmatched > 0 && (
-                <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold text-yellow-900 mb-1">
-                        {jobResult.total_unmatched} item tidak dapat di-bypass
-                      </p>
-                      <p className="text-xs text-yellow-700">
-                        Item ini mungkin tidak ditemukan dalam dokumen original atau memiliki similarity score terlalu rendah.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Matched Items Table */}
-              {jobResult.matched_items && jobResult.matched_items.length > 0 && (
-                <div className="mt-6">
-                  <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Matched Items ({jobResult.total_matched})
-                  </h4>
-                  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                    <div className="max-h-96 overflow-y-auto">
-                      <table className="w-full">
-                        <thead className="bg-gray-50 sticky top-0">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
-                              Flagged Text
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">
-                              Matched Text
-                            </th>
-                            <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase w-24">
-                              Similarity
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {jobResult.matched_items.slice(0, 10).map((item: any, index: number) => (
-                            <tr key={index} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-3 text-sm text-gray-900">
-                                <div className="max-w-xs truncate" title={item.flagged_text}>
-                                  {item.flagged_text}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
-                                <div className="max-w-md truncate" title={item.matched_text}>
-                                  {item.matched_text}
-                                </div>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${item.similarity_score === 100
-                                  ? 'bg-green-100 text-green-800'
-                                  : item.similarity_score >= 90
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                  {item.similarity_score}%
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    {jobResult.matched_items.length > 10 && (
-                      <div className="bg-gray-50 px-4 py-3 text-center border-t border-gray-200">
-                        <p className="text-xs text-gray-600">
-                          Menampilkan 10 dari {jobResult.matched_items.length} matched items
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Unmatched Items */}
-              {jobResult.unmatched_items && jobResult.unmatched_items.length > 0 && (
-                <div className="mt-6">
-                  <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                    <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
-                    Unmatched Items ({jobResult.total_unmatched})
-                  </h4>
-                  <div className="bg-white rounded-xl border border-red-200 overflow-hidden">
-                    <div className="max-h-64 overflow-y-auto">
-                      <table className="w-full">
-                        <thead className="bg-red-50 sticky top-0">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-red-700 uppercase">
-                              Flagged Text
-                            </th>
-                            <th className="px-4 py-3 text-center text-xs font-semibold text-red-700 uppercase w-24">
-                              Best Score
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-red-100">
-                          {jobResult.unmatched_items.map((item: any, index: number) => (
-                            <tr key={index} className="hover:bg-red-50 transition-colors">
-                              <td className="px-4 py-3 text-sm text-gray-900">
-                                {item.flagged_text}
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">
-                                  {item.best_score}%
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         )}
 
-        {/* Bypass History */}
+        {/* Bypass History - Modern Timeline */}
         {documentData.bypasses && documentData.bypasses.length > 0 && (
-          <Card className="shadow-sm border border-gray-200 rounded-xl">
-            <CardContent className="pt-4 pb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                <Zap className="h-4 w-4 mr-1.5" />
+          <Card className="shadow-lg border-0 rounded-2xl bg-white/80 backdrop-blur">
+            <CardContent className="pt-5 pb-5">
+              <h3 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg flex items-center justify-center">
+                  <Zap className="h-4 w-4 text-white" />
+                </div>
                 Riwayat Bypass
               </h3>
-              <div className="space-y-2">
-                {documentData.bypasses.map((bypass) => (
+              <div className="space-y-3">
+                {documentData.bypasses.map((bypass, index) => (
                   <div
                     key={bypass.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                    className="relative flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-200/50 hover:shadow-md transition-all"
                   >
-                    <div className="flex-1 min-w-0 mr-4">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900">
-                          {bypass.strategy}
-                        </p>
-                        {bypass.status === 'COMPLETED' ? (
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-medium">
-                            Selesai
-                          </span>
-                        ) : (
-                          <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-medium">
-                            {bypass.status}
-                          </span>
-                        )}
+                    <div className="flex items-start gap-3 flex-1 min-w-0 mr-4">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                        <span className="text-white font-bold text-sm">#{index + 1}</span>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1 truncate">
-                        {new Date(bypass.createdAt).toLocaleDateString('id-ID', {
-                          day: '2-digit',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })} • {bypass.outputFilename}
-                      </p>
-                      <div className="flex gap-3 mt-1">
-                        {bypass.successRate !== undefined && (
-                          <span className="text-xs text-gray-600">
-                            Success: {bypass.successRate.toFixed(1)}%
-                          </span>
-                        )}
-                        {bypass.flagsRemoved !== undefined && (
-                          <span className="text-xs text-gray-600">
-                            Removed: {bypass.flagsRemoved}
-                          </span>
-                        )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {bypass.strategy}
+                          </p>
+                          {bypass.status === 'COMPLETED' ? (
+                            <span className="text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-white px-2.5 py-1 rounded-lg font-semibold shadow-sm">
+                              ✓ Selesai
+                            </span>
+                          ) : (
+                            <span className="text-xs bg-gray-300 text-gray-700 px-2.5 py-1 rounded-lg font-semibold">
+                              {bypass.status}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-600 mb-2 truncate flex items-center gap-1.5">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {new Date(bypass.createdAt).toLocaleDateString('id-ID', {
+                            day: '2-digit',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate mb-2">
+                          📄 {bypass.outputFilename}
+                        </p>
+                        <div className="flex gap-3">
+                          {bypass.successRate !== undefined && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-lg font-medium">
+                              📈 {bypass.successRate.toFixed(1)}% Success
+                            </span>
+                          )}
+                          {bypass.flagsRemoved !== undefined && (
+                            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-lg font-medium">
+                              🚩 {bypass.flagsRemoved} Removed
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {bypass.status === 'COMPLETED' && bypass.outputFilename && (
                       <Button
                         size="sm"
                         onClick={() => handleDownload(bypass.outputFilename, true)}
-                        className="bg-[#3674B5] hover:bg-[#578FCA] text-white rounded-lg h-8 px-3 flex-shrink-0"
+                        className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl h-9 px-4 flex-shrink-0 shadow-md hover:shadow-lg transition-all"
                       >
-                        <Download className="h-3 w-3 mr-1" />
-                        <span className="text-xs">Download</span>
+                        <Download className="h-3.5 w-3.5 mr-1.5" />
+                        <span className="text-xs font-semibold">Download</span>
                       </Button>
                     )}
                   </div>

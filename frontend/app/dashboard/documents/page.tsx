@@ -219,30 +219,30 @@ export default function DocumentsPage() {
     switch (status) {
       case 'COMPLETED':
         return (
-          <div className="flex items-center space-x-1 px-2 py-1 bg-green-50 text-green-700 rounded text-xs font-medium">
-            <CheckCircle className="h-3 w-3" />
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl text-xs font-bold shadow-md">
+            <CheckCircle className="h-3.5 w-3.5" />
             <span>Selesai</span>
           </div>
         )
       case 'PROCESSING':
       case 'ANALYZING':
         return (
-          <div className="flex items-center space-x-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
-            <Clock className="h-3 w-3" />
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl text-xs font-bold shadow-md animate-pulse">
+            <Clock className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: '2s' }} />
             <span>Proses</span>
           </div>
         )
       case 'FAILED':
         return (
-          <div className="flex items-center space-x-1 px-2 py-1 bg-red-50 text-red-700 rounded text-xs font-medium">
-            <AlertCircle className="h-3 w-3" />
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl text-xs font-bold shadow-md">
+            <AlertCircle className="h-3.5 w-3.5" />
             <span>Gagal</span>
           </div>
         )
       default:
         return (
-          <div className="flex items-center space-x-1 px-2 py-1 bg-gray-50 text-gray-700 rounded text-xs font-medium">
-            <Clock className="h-3 w-3" />
+          <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-gray-400 to-gray-600 text-white rounded-xl text-xs font-bold shadow-md">
+            <Clock className="h-3.5 w-3.5" />
             <span>Pending</span>
           </div>
         )
@@ -810,27 +810,37 @@ export default function DocumentsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Document Detail Dialog */}
+      {/* Document Detail Dialog - Modern Design */}
       <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50">
           {selectedDocument && (
             <>
-              <DialogHeader>
-                <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-                  <File className="h-5 w-5 text-[#3674B5]" />
-                  {selectedDocument.title}
-                </DialogTitle>
+              <DialogHeader className="pb-4 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <File className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <DialogTitle className="text-xl font-bold text-gray-900 truncate">
+                      {selectedDocument.title}
+                    </DialogTitle>
+                    <p className="text-sm text-gray-600 truncate mt-0.5">{selectedDocument.originalFilename}</p>
+                  </div>
+                  <div>{getStatusBadge(selectedDocument.status)}</div>
+                </div>
               </DialogHeader>
 
-              <div className="space-y-4 mt-4">
-                {/* Approval Status Banners */}
+              <div className="space-y-5 mt-6">
+                {/* Approval Status Banners - Modern */}
                 {selectedDocument.requiresApproval && selectedDocument.approvalStatus === 'PENDING' && (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl shadow-sm">
                     <div className="flex items-start gap-3">
-                      <Clock className="h-5 w-5 text-yellow-700 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="text-sm font-semibold text-yellow-900 mb-1">
-                          Menunggu Persetujuan Admin
+                      <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                        <Clock className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-bold text-yellow-900 mb-1">
+                          ⏳ Menunggu Persetujuan Admin
                         </h4>
                         <p className="text-xs text-yellow-800">
                           Dokumen ini sedang dalam antrian persetujuan. Proses akan dimulai otomatis setelah disetujui.
@@ -841,19 +851,21 @@ export default function DocumentsPage() {
                 )}
 
                 {selectedDocument.approvalStatus === 'REJECTED' && (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="p-4 bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-xl shadow-sm">
                     <div className="flex items-start gap-3">
-                      <AlertCircle className="h-5 w-5 text-red-700 flex-shrink-0 mt-0.5" />
+                      <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                        <AlertCircle className="h-5 w-5 text-white" />
+                      </div>
                       <div className="flex-1">
-                        <h4 className="text-sm font-semibold text-red-900 mb-1">
-                          Dokumen Ditolak
+                        <h4 className="text-sm font-bold text-red-900 mb-1">
+                          ❌ Dokumen Ditolak
                         </h4>
                         <p className="text-xs text-red-800 mb-2">
                           Dokumen ini telah ditolak oleh admin. Silakan perbaiki dan upload ulang.
                         </p>
                         {selectedDocument.rejectionReason && (
-                          <div className="mt-2 p-2 bg-red-100 rounded border border-red-200">
-                            <p className="text-xs font-medium text-red-900 mb-1">Alasan Penolakan:</p>
+                          <div className="mt-2 p-3 bg-white/70 backdrop-blur rounded-lg border border-red-200">
+                            <p className="text-xs font-semibold text-red-900 mb-1">Alasan Penolakan:</p>
                             <p className="text-xs text-red-800">{selectedDocument.rejectionReason}</p>
                           </div>
                         )}
@@ -863,12 +875,14 @@ export default function DocumentsPage() {
                 )}
 
                 {selectedDocument.approvalStatus === 'APPROVED' && selectedDocument.status === 'PENDING' && (
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl shadow-sm">
                     <div className="flex items-start gap-3">
-                      <CheckCircle className="h-5 w-5 text-green-700 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="text-sm font-semibold text-green-900 mb-1">
-                          Dokumen Disetujui
+                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                        <CheckCircle className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-bold text-green-900 mb-1">
+                          ✅ Dokumen Disetujui
                         </h4>
                         <p className="text-xs text-green-800">
                           Dokumen telah disetujui. Anda dapat memulai proses bypass sekarang.
@@ -878,34 +892,62 @@ export default function DocumentsPage() {
                   </div>
                 )}
 
-                {/* Document Info */}
-                <Card className="shadow-sm border border-gray-200">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-gray-500">Ukuran File</p>
-                        <p className="text-sm font-semibold text-gray-900">
+                {/* Document Info - Modern Stats */}
+                <Card className="shadow-lg border-0 rounded-2xl bg-white/80 backdrop-blur">
+                  <CardContent className="pt-5 pb-5">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-7 h-7 bg-blue-500 rounded-lg flex items-center justify-center">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <p className="text-xs font-medium text-blue-700">Ukuran</p>
+                        </div>
+                        <p className="text-base font-bold text-blue-900">
                           {formatFileSize(selectedDocument.fileSize)}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Tanggal Upload</p>
-                        <p className="text-sm font-semibold text-gray-900">
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200/50">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-7 h-7 bg-purple-500 rounded-lg flex items-center justify-center">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <p className="text-xs font-medium text-purple-700">Tanggal</p>
+                        </div>
+                        <p className="text-sm font-bold text-purple-900">
                           {formatDateMedium(getDocumentDate(selectedDocument))}
                         </p>
                       </div>
                       {selectedDocument.analysis && (
                         <>
-                          <div>
-                            <p className="text-xs text-gray-500">Bendera</p>
-                            <p className="text-sm font-semibold text-gray-900">
+                          <div className="p-3 rounded-xl bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200/50">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center">
+                                <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                                </svg>
+                              </div>
+                              <p className="text-xs font-medium text-orange-700">Bendera</p>
+                            </div>
+                            <p className="text-base font-bold text-orange-900">
                               {selectedDocument.analysis.flagCount}
                             </p>
                           </div>
                           {selectedDocument.analysis.similarityScore !== undefined && (
-                            <div>
-                              <p className="text-xs text-gray-500">Similaritas</p>
-                              <p className="text-sm font-semibold text-gray-900">
+                            <div className="p-3 rounded-xl bg-gradient-to-br from-green-50 to-green-100/50 border border-green-200/50">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-7 h-7 bg-green-500 rounded-lg flex items-center justify-center">
+                                  <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                  </svg>
+                                </div>
+                                <p className="text-xs font-medium text-green-700">Similaritas</p>
+                              </div>
+                              <p className="text-base font-bold text-green-900">
                                 {selectedDocument.analysis.similarityScore.toFixed(1)}%
                               </p>
                             </div>
@@ -916,23 +958,28 @@ export default function DocumentsPage() {
                   </CardContent>
                 </Card>
 
-                {/* Files */}
-                <Card className="shadow-sm border border-gray-200">
+                {/* Files - Modern */}
+                <Card className="shadow-lg border-0 rounded-2xl bg-white/80 backdrop-blur">
                   <CardContent className="pt-4 pb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <FileText className="h-4 w-4 mr-1.5" />
+                    <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                      <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                        <FileText className="h-3.5 w-3.5 text-white" />
+                      </div>
                       File Dokumen
                     </h3>
                     <div className="space-y-2">
                       {/* DOCX */}
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200/50 hover:shadow-md transition-all">
                         <div className="flex items-center space-x-3 flex-1 min-w-0">
-                          <File className="h-5 w-5 text-[#3674B5] flex-shrink-0" />
+                          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <File className="h-4 w-4 text-blue-600" />
+                          </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
+                            <p className="text-sm font-semibold text-gray-900 truncate">
                               {selectedDocument.originalFilename}
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-gray-600 flex items-center gap-1">
+                              <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
                               {formatFileSize(selectedDocument.fileSize)}
                             </p>
                           </div>
@@ -940,32 +987,37 @@ export default function DocumentsPage() {
                         <Button
                           size="sm"
                           onClick={() => handleDownload(selectedDocument.originalFilename)}
-                          className="bg-[#3674B5] hover:bg-[#578FCA] text-white rounded-lg h-8 px-3"
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl h-8 px-3 shadow-md hover:shadow-lg transition-all"
                         >
                           <Download className="h-3 w-3 mr-1" />
-                          <span className="text-xs">Download</span>
+                          <span className="text-xs font-semibold">Download</span>
                         </Button>
                       </div>
 
                       {/* PDF */}
                       {selectedDocument.pdfPath && (
-                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-200/50 hover:shadow-md transition-all">
                           <div className="flex items-center space-x-3 flex-1 min-w-0">
-                            <File className="h-5 w-5 text-[#3674B5] flex-shrink-0" />
+                            <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                              <File className="h-4 w-4 text-purple-600" />
+                            </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">
+                              <p className="text-sm font-semibold text-gray-900 truncate">
                                 PDF Turnitin
                               </p>
-                              <p className="text-xs text-gray-500">File Turnitin</p>
+                              <p className="text-xs text-gray-600 flex items-center gap-1">
+                                <span className="w-1 h-1 bg-purple-500 rounded-full"></span>
+                                File Turnitin
+                              </p>
                             </div>
                           </div>
                           <Button
                             size="sm"
                             onClick={() => handleDownload(selectedDocument.originalFilename.replace('.docx', '.pdf'))}
-                            className="bg-[#3674B5] hover:bg-[#578FCA] text-white rounded-lg h-8 px-3"
+                            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl h-8 px-3 shadow-md hover:shadow-lg transition-all"
                           >
                             <Download className="h-3 w-3 mr-1" />
-                            <span className="text-xs">Download</span>
+                            <span className="text-xs font-semibold">Download</span>
                           </Button>
                         </div>
                       )}
@@ -1026,117 +1078,177 @@ export default function DocumentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Upload Dialog */}
+      {/* Upload Dialog - Modern Design */}
       <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-              <Upload className="h-5 w-5 text-[#3674B5]" />
-              Upload Dokumen Baru
-            </DialogTitle>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-blue-50/50 via-white to-purple-50/50">
+          <DialogHeader className="pb-4 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Upload className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-bold text-gray-900">
+                  Upload Dokumen Baru
+                </DialogTitle>
+                <p className="text-sm text-gray-600 mt-0.5">Unggah dokumen DOCX dan PDF Turnitin</p>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-4 mt-4">
-            {/* DOCX Upload Area */}
-            <div>
-              <Label className="text-sm font-medium text-gray-700 mb-2">
-                File DOCX <span className="text-red-500">*</span>
-              </Label>
+          <div className="space-y-6 mt-6">
+            {/* Info Banner */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-4 h-4 text-yellow-700" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xs font-semibold text-yellow-900 mb-1">
+                    ℹ️ Informasi Penting
+                  </h3>
+                  <ul className="text-xs text-yellow-800 space-y-0.5">
+                    <li>• Dokumen akan menunggu persetujuan admin sebelum diproses</li>
+                    <li>• Proses dimulai otomatis setelah disetujui</li>
+                    <li>• Kedua file (DOCX + PDF) wajib diupload</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 1: DOCX Upload Area */}
+            <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center text-white font-bold text-xs">1</div>
+                <Label className="text-base font-semibold text-gray-900">
+                  File DOCX Original <span className="text-red-500">*</span>
+                </Label>
+              </div>
               {!selectedDocxFile ? (
                 <div
                   onDragEnter={handleDragDocx}
                   onDragLeave={handleDragDocx}
                   onDragOver={handleDragDocx}
                   onDrop={handleDropDocx}
-                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${dragActiveDocx
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-300 hover:border-gray-400'
+                  className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-300 ${dragActiveDocx
+                    ? 'border-blue-400 bg-blue-50 scale-105'
+                    : 'border-gray-200 hover:border-blue-400 hover:bg-blue-50'
                     }`}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600 mb-1">
-                    Klik untuk upload atau drag & drop
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl mx-auto mb-3 flex items-center justify-center shadow-lg">
+                    <Upload className="h-8 w-8 text-white" />
+                  </div>
+                  <p className="text-base font-semibold text-gray-900 mb-1">
+                    Drag & drop file DOCX
                   </p>
-                  <p className="text-xs text-gray-500">
-                    Format: .docx (Maksimal 10MB)
+                  <p className="text-sm text-gray-600 mb-4">Atau klik untuk memilih file</p>
+                  <p className="text-xs text-gray-400">
+                    Format: .docx | Maksimal: 10MB
                   </p>
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex items-center space-x-3 flex-1 min-w-0">
-                    <File className="h-5 w-5 text-[#3674B5] flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {selectedDocxFile.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatFileSize(selectedDocxFile.size)}
-                      </p>
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                        <File className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {selectedDocxFile.name}
+                        </p>
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          {formatFileSize(selectedDocxFile.size)}
+                        </p>
+                        <div className="flex items-center mt-2">
+                          <CheckCircle className="h-4 w-4 text-green-500 mr-1.5" />
+                          <span className="text-xs text-green-700 font-medium">
+                            File siap diupload
+                          </span>
+                        </div>
+                      </div>
                     </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveDocxFile}
+                      disabled={uploading}
+                      className="text-red-500 hover:bg-red-50 hover:text-red-600 h-9 w-9 p-0"
+                    >
+                      <X className="h-5 w-5" />
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRemoveDocxFile}
-                    disabled={uploading}
-                    className="h-8 px-3 text-red-600 hover:bg-red-50 border-red-200 rounded-lg"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
                 </div>
               )}
             </div>
 
-            {/* PDF Upload Area (Required) */}
-            <div>
-              <Label className="text-sm font-medium text-gray-700 mb-2">
-                File PDF Turnitin <span className="text-red-500">*</span>
-              </Label>
+            {/* Step 2: PDF Upload Area */}
+            <div className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 bg-gradient-to-br from-purple-600 to-purple-700 rounded-full flex items-center justify-center text-white font-bold text-xs">2</div>
+                <Label className="text-base font-semibold text-gray-900">
+                  File PDF Turnitin <span className="text-red-500">*</span>
+                </Label>
+              </div>
               {!selectedPdfFile ? (
                 <div
                   onDragEnter={handleDragPdf}
                   onDragLeave={handleDragPdf}
                   onDragOver={handleDragPdf}
                   onDrop={handleDropPdf}
-                  className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${dragActivePdf
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-300 hover:border-gray-400'
+                  className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-300 ${dragActivePdf
+                    ? 'border-purple-400 bg-purple-50 scale-105'
+                    : 'border-gray-200 hover:border-purple-400 hover:bg-purple-50'
                     }`}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                  <p className="text-sm text-gray-600 mb-1">
-                    Klik untuk upload atau drag & drop
+                  <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-700 rounded-2xl mx-auto mb-3 flex items-center justify-center shadow-lg">
+                    <Upload className="h-8 w-8 text-white" />
+                  </div>
+                  <p className="text-base font-semibold text-gray-900 mb-1">
+                    Drag & drop file PDF
                   </p>
-                  <p className="text-xs text-gray-500">
-                    Format: .pdf (Maksimal 10MB)
+                  <p className="text-sm text-gray-600 mb-4">Atau klik untuk memilih file</p>
+                  <p className="text-xs text-gray-400">
+                    Format: .pdf | Maksimal: 10MB
                   </p>
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex items-center space-x-3 flex-1 min-w-0">
-                    <File className="h-5 w-5 text-[#3674B5] flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {selectedPdfFile.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatFileSize(selectedPdfFile.size)}
-                      </p>
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 border border-purple-200 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center space-x-3 flex-1 min-w-0">
+                      <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                        <File className="h-6 w-6 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">
+                          {selectedPdfFile.name}
+                        </p>
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          {formatFileSize(selectedPdfFile.size)}
+                        </p>
+                        <div className="flex items-center mt-2">
+                          <CheckCircle className="h-4 w-4 text-green-500 mr-1.5" />
+                          <span className="text-xs text-green-700 font-medium">
+                            File siap diupload
+                          </span>
+                        </div>
+                      </div>
                     </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemovePdfFile}
+                      disabled={uploading}
+                      className="text-red-500 hover:bg-red-50 hover:text-red-600 h-9 w-9 p-0"
+                    >
+                      <X className="h-5 w-5" />
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRemovePdfFile}
-                    disabled={uploading}
-                    className="h-8 px-3 text-red-600 hover:bg-red-50 border-red-200 rounded-lg"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
                 </div>
               )}
             </div>
@@ -1151,24 +1263,54 @@ export default function DocumentsPage() {
             />
 
             {/* Info Box */}
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start space-x-3">
-                <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-blue-800">
-                  <p className="font-semibold mb-1">Informasi:</p>
-                  <ul className="list-disc list-inside space-y-1 text-xs">
-                    <li>File DOCX original <strong>wajib</strong> diupload</li>
-                    <li>File PDF Turnitin <strong>wajib</strong> diupload</li>
-                    <li>Maksimal ukuran file: 10MB per file</li>
-                    <li>Nama dokumen dibuat otomatis: NamaFile_Paket_KodeUnik</li>
-                    <li>Dokumen akan diproses setelah upload berhasil</li>
-                  </ul>
-                </div>
-              </div>
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 shadow-sm">
+              <h4 className="font-semibold text-gray-900 mb-3 flex items-center text-sm">
+                <div className="w-5 h-5 bg-amber-500 rounded-full mr-2 flex items-center justify-center text-xs text-white font-bold">i</div>
+                Informasi Penting
+              </h4>
+              <ul className="text-xs text-gray-700 space-y-2">
+                <li className="flex items-start">
+                  <span className="text-amber-600 mr-2 font-bold">✓</span>
+                  <span>File DOCX original <strong>wajib</strong> diunggah</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-amber-600 mr-2 font-bold">✓</span>
+                  <span>File PDF Turnitin <strong>wajib</strong> diunggah</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-amber-600 mr-2 font-bold">✓</span>
+                  <span>Ukuran file maksimal <strong>10MB</strong> per file</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-amber-600 mr-2 font-bold">✓</span>
+                  <span>Nama otomatis: <strong>NamaFile_Paket_KodeUnik</strong></span>
+                </li>
+              </ul>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <div className="flex gap-3 pt-4">
+              <Button
+                type="button"
+                onClick={handleUploadSubmit}
+                disabled={uploading || !selectedDocxFile || !selectedPdfFile}
+                className="flex-1 h-12 text-base bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {uploading ? (
+                  <div className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Mengupload DOCX + PDF...
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-5 w-5 mr-2" />
+                    {selectedDocxFile && selectedPdfFile ? 'Upload DOCX + PDF' : 'Upload Dokumen'}
+                  </>
+                )}
+              </Button>
               <Button
                 type="button"
                 variant="outline"
@@ -1178,30 +1320,9 @@ export default function DocumentsPage() {
                   setSelectedPdfFile(null)
                 }}
                 disabled={uploading}
-                className="flex-1 h-10"
+                className="px-8 h-12 border-2 border-gray-200 text-gray-700 hover:bg-gray-50"
               >
                 Batal
-              </Button>
-              <Button
-                type="button"
-                onClick={handleUploadSubmit}
-                disabled={uploading || !selectedDocxFile || !selectedPdfFile}
-                className="flex-1 h-10 bg-[#3674B5] hover:bg-[#578FCA] text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {uploading ? (
-                  <div className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Mengupload...
-                  </div>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Dokumen
-                  </>
-                )}
               </Button>
             </div>
           </div>
