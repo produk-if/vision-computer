@@ -32,9 +32,36 @@ export default function SelectPackagePage() {
     if (status === 'unauthenticated') {
       router.push('/auth/login')
     } else if (status === 'authenticated') {
-      fetchPackages()
+      checkProfileCompletion()
     }
   }, [status, router])
+
+  const checkProfileCompletion = async () => {
+    try {
+      const response = await fetch('/api/profile')
+      const data = await response.json()
+
+      if (data.success) {
+        const profile = data.data.profile
+
+        // Check if required profile fields are completed
+        if (!profile || !profile.fullName || !profile.phone || !profile.institution || !profile.faculty || !profile.major) {
+          // Profile incomplete, redirect to complete-profile
+          router.push('/subscription/complete-profile')
+          return
+        }
+
+        // Profile complete, fetch packages
+        fetchPackages()
+      } else {
+        // Error fetching profile, redirect to complete-profile
+        router.push('/subscription/complete-profile')
+      }
+    } catch (error) {
+      console.error('Error checking profile:', error)
+      router.push('/subscription/complete-profile')
+    }
+  }
 
   const fetchPackages = async () => {
     try {
@@ -106,11 +133,10 @@ export default function SelectPackagePage() {
           {packages.map((pkg) => (
             <Card
               key={pkg.id}
-              className={`relative p-8 cursor-pointer transition-all duration-200 border-2 ${
-                selectedPackage === pkg.id
+              className={`relative p-8 cursor-pointer transition-all duration-200 border-2 ${selectedPackage === pkg.id
                   ? 'ring-2 ring-blue-600 shadow-xl transform scale-105'
                   : 'hover:shadow-lg'
-              }`}
+                }`}
               onClick={() => handleSelectPackage(pkg.id)}
             >
               {/* Popular Badge for middle package */}
@@ -157,11 +183,10 @@ export default function SelectPackagePage() {
 
               {/* Select Button */}
               <Button
-                className={`w-full h-11 font-semibold shadow-lg transition-all ${
-                  selectedPackage === pkg.id
+                className={`w-full h-11 font-semibold shadow-lg transition-all ${selectedPackage === pkg.id
                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white hover:shadow-xl'
                     : 'bg-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 text-blue-600 border-2 border-blue-600 hover:border-purple-600'
-                }`}
+                  }`}
                 onClick={() => handleSelectPackage(pkg.id)}
               >
                 {selectedPackage === pkg.id ? 'Dipilih' : 'Pilih Paket'}

@@ -23,12 +23,19 @@ export async function GET(request: NextRequest) {
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
+        where: {
+          role: {
+            not: 'ADMIN', // Exclude admin users
+          },
+        },
         select: {
           id: true,
           name: true,
+          username: true,
           email: true,
           role: true,
           emailVerified: true,
+          isActive: true,
           createdAt: true,
           profile: {
             select: {
@@ -37,7 +44,7 @@ export async function GET(request: NextRequest) {
               institution: true,
             },
           },
-          subscription: {
+          subscriptions: {
             select: {
               id: true,
               status: true,
@@ -51,6 +58,10 @@ export async function GET(request: NextRequest) {
                 },
               },
             },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
           },
           _count: {
             select: {
@@ -65,7 +76,13 @@ export async function GET(request: NextRequest) {
         skip,
         take: limit,
       }),
-      prisma.user.count(),
+      prisma.user.count({
+        where: {
+          role: {
+            not: 'ADMIN', // Exclude admin users from count
+          },
+        },
+      }),
     ])
 
     return NextResponse.json({

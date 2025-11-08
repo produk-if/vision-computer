@@ -13,7 +13,9 @@ import {
   Activity,
   FileCheck,
   Settings,
+  Database,
 } from 'lucide-react'
+import { Toaster } from '@/components/ui/toaster'
 
 export default function AdminLayout({
   children,
@@ -56,6 +58,7 @@ export default function AdminLayout({
     { key: '/admin/users', label: 'Pengguna', icon: Users },
     { key: '/admin/packages', label: 'Paket & Harga', icon: Package },
     { key: '/admin/payments', label: 'Verifikasi Pembayaran', icon: CreditCard },
+    { key: '/admin/master-data', label: 'Master Data', icon: Database },
     { key: '/admin/settings', label: 'Pengaturan', icon: Settings },
   ]
 
@@ -67,6 +70,7 @@ export default function AdminLayout({
     if (pathname === '/admin/documents') return 'Dokumen'
     if (pathname === '/admin/users') return 'Pengguna'
     if (pathname === '/admin/packages') return 'Paket & Harga'
+    if (pathname === '/admin/master-data') return 'Master Data'
     if (pathname === '/admin/settings') return 'Pengaturan Sistem'
     return 'Admin Panel'
   }
@@ -182,6 +186,7 @@ export default function AdminLayout({
           </div>
         </main>
       </div>
+      <Toaster />
     </div>
   )
 }

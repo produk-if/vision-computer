@@ -149,8 +149,6 @@ export default function UploadDocumentPage() {
   }
 
   const handleUpload = async () => {
-    alert('🎬 UPLOAD BUTTON CLICKED!\n\nDOCX: ' + (selectedDocxFile?.name || 'NO') + '\nPDF: ' + (selectedPdfFile?.name || 'NO'))
-
     console.log('\n' + '🎬'.repeat(35))
     console.log('🎬 [CLIENT - UPLOAD PAGE] USER CLICKED UPLOAD BUTTON')
     console.log('🎬'.repeat(35))
@@ -279,9 +277,6 @@ export default function UploadDocumentPage() {
       // Trigger background processing (PDF is now required)
       if (hasPdfFile && documentId) {
         try {
-          // ALERT SEBELUM PANGGIL BACKEND
-          alert('🚀 WILL CALL BACKEND!\n\nDocument ID: ' + documentId + '\nEndpoint: /api/documents/' + documentId + '/process')
-
           console.log('\n' + '🚀'.repeat(35))
           console.log('🚀 [CLIENT - UPLOAD PAGE] CALLING NEXT.JS API TO PROCESS DOCUMENT')
           console.log('🚀'.repeat(35))
@@ -298,9 +293,6 @@ export default function UploadDocumentPage() {
             method: 'POST',
           })
           const fetchDuration = Date.now() - fetchStartTime
-
-          // ALERT SETELAH DAPAT RESPONSE
-          alert('📡 BACKEND RESPONDED!\n\nStatus: ' + processResponse.status + '\nOK: ' + processResponse.ok + '\nTime: ' + fetchDuration + 'ms')
 
           console.log('\n' + '📡'.repeat(35))
           console.log(`📡 [CLIENT - UPLOAD PAGE] RESPONSE RECEIVED in ${fetchDuration}ms`)

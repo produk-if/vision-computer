@@ -10,14 +10,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Users, Search, Mail, Phone, Building, Calendar, FileText, CheckCircle, XCircle, CreditCard } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Users, Search, Mail, Phone, Building, Calendar, FileText, CheckCircle, XCircle, CreditCard, Ban, Trash2, Power } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 interface User {
   id: string
   name: string
+  username: string | null
   email: string
   role: string
   emailVerified: Date | null
+  isActive: boolean
   createdAt: string
   profile: {
     fullName: string
@@ -26,7 +39,7 @@ interface User {
     faculty: string | null
     major: string | null
   } | null
-  subscription: {
+  subscriptions: {
     id: string
     status: string
     startDate: string
@@ -36,7 +49,7 @@ interface User {
       name: string
       validityDays: number
     }
-  } | null
+  }[]
   _count: {
     documents: number
     bypasses: number
@@ -44,12 +57,16 @@ interface User {
 }
 
 export default function AdminUsersPage() {
+  const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [roleFilter, setRoleFilter] = useState('ALL')
+  const [statusFilter, setStatusFilter] = useState('ALL')
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [showDetailDialog, setShowDetailDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     fetchUsers()
@@ -81,6 +98,106 @@ export default function AdminUsersPage() {
     }
   }
 
+  const handleToggleActive = async (user: User) => {
+    if (user.role === 'ADMIN') {
+      toast({
+        variant: 'destructive',
+        title: '❌ Tidak Diizinkan',
+        description: 'Tidak dapat menonaktifkan akun admin',
+      })
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          isActive: !user.isActive,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: '✅ Berhasil',
+          description: `User ${user.isActive ? 'dinonaktifkan' : 'diaktifkan'}`,
+        })
+        fetchUsers()
+      } else {
+        toast({
+          variant: 'destructive',
+          title: '❌ Gagal',
+          description: data.error || 'Gagal mengubah status user',
+        })
+      }
+    } catch (error) {
+      console.error('Error toggling user status:', error)
+      toast({
+        variant: 'destructive',
+        title: '❌ Error',
+        description: 'Terjadi kesalahan saat mengubah status user',
+      })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDeleteClick = (user: User) => {
+    if (user.role === 'ADMIN') {
+      toast({
+        variant: 'destructive',
+        title: '❌ Tidak Diizinkan',
+        description: 'Tidak dapat menghapus akun admin',
+      })
+      return
+    }
+    setUserToDelete(user)
+    setShowDeleteDialog(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!userToDelete) return
+
+    setActionLoading(true)
+    try {
+      const response = await fetch(`/api/admin/users/${userToDelete.id}`, {
+        method: 'DELETE',
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: '✅ Berhasil',
+          description: 'User berhasil dihapus',
+        })
+        setShowDeleteDialog(false)
+        setUserToDelete(null)
+        fetchUsers()
+      } else {
+        toast({
+          variant: 'destructive',
+          title: '❌ Gagal',
+          description: data.error || 'Gagal menghapus user',
+        })
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      toast({
+        variant: 'destructive',
+        title: '❌ Error',
+        description: 'Terjadi kesalahan saat menghapus user',
+      })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('id-ID', {
       day: 'numeric',
@@ -89,7 +206,8 @@ export default function AdminUsersPage() {
     })
   }
 
-  const getSubscriptionStatus = (subscription: User['subscription']) => {
+  const getSubscriptionStatus = (subscriptions: User['subscriptions']) => {
+    const subscription = subscriptions?.[0] // Get latest subscription
     if (!subscription) {
       return { label: 'Tidak Aktif', color: 'bg-gray-100 text-gray-800' }
     }
@@ -117,9 +235,12 @@ export default function AdminUsersPage() {
       (user.profile?.faculty || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (user.profile?.major || '').toLowerCase().includes(searchQuery.toLowerCase())
 
-    const matchesRole = roleFilter === 'ALL' || user.role === roleFilter
+    const matchesStatus =
+      statusFilter === 'ALL' ||
+      (statusFilter === 'ACTIVE' && user.isActive) ||
+      (statusFilter === 'INACTIVE' && !user.isActive)
 
-    return matchesSearch && matchesRole
+    return matchesSearch && matchesStatus
   })
 
   if (loading) {
@@ -133,14 +254,14 @@ export default function AdminUsersPage() {
     )
   }
 
-  const activeUsers = users.filter(u => u.subscription?.status === 'ACTIVE').length
-  const pendingUsers = users.filter(u => u.subscription?.status === 'PENDING').length
+  const activeUsers = users.filter(u => u.subscriptions?.[0]?.status === 'ACTIVE').length
+  const pendingUsers = users.filter(u => u.subscriptions?.[0]?.status === 'PENDING').length
 
   return (
     <div className="p-8">
       <div className="max-w-7xl mx-auto">
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className="border border-gray-200 shadow-sm hover:shadow-md hover:border-brand-primary/50 transition-all">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -155,43 +276,29 @@ export default function AdminUsersPage() {
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm hover:shadow-md hover:border-brand-sage/50 transition-all">
+          <Card className="border border-gray-200 shadow-sm hover:shadow-md hover:border-green-500/50 transition-all">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-brand-navy mb-1">User Aktif</p>
-                  <p className="text-3xl font-bold text-brand-navy-dark">{activeUsers}</p>
+                  <p className="text-sm text-brand-navy mb-1">Akun Aktif</p>
+                  <p className="text-3xl font-bold text-brand-navy-dark">{users.filter(u => u.isActive).length}</p>
                 </div>
-                <div className="w-12 h-12 bg-brand-sage/20 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="h-6 w-6 text-brand-sage" />
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border border-gray-200 shadow-sm hover:shadow-md hover:border-brand-sage-light/50 transition-all">
+          <Card className="border border-gray-200 shadow-sm hover:shadow-md hover:border-red-500/50 transition-all">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-brand-navy mb-1">Pending</p>
-                  <p className="text-3xl font-bold text-brand-navy-dark">{pendingUsers}</p>
+                  <p className="text-sm text-brand-navy mb-1">Akun Non-Aktif</p>
+                  <p className="text-3xl font-bold text-brand-navy-dark">{users.filter(u => !u.isActive).length}</p>
                 </div>
-                <div className="w-12 h-12 bg-brand-sage-light/40 rounded-lg flex items-center justify-center">
-                  <CreditCard className="h-6 w-6 text-brand-teal" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border border-gray-200 shadow-sm hover:shadow-md hover:border-brand-teal/50 transition-all">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-brand-navy mb-1">Admin</p>
-                  <p className="text-3xl font-bold text-brand-navy-dark">{users.filter(u => u.role === 'ADMIN').length}</p>
-                </div>
-                <div className="w-12 h-12 bg-brand-teal/20 rounded-lg flex items-center justify-center">
-                  <Users className="h-6 w-6 text-brand-teal" />
+                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                  <Ban className="h-6 w-6 text-red-600" />
                 </div>
               </div>
             </CardContent>
@@ -212,17 +319,16 @@ export default function AdminUsersPage() {
               />
             </div>
 
-            {/* Role Filter */}
+            {/* Status Filter */}
             <div className="flex items-center space-x-2">
-              <Users className="h-5 w-5 text-gray-500" />
               <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white h-12"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="border-2 border-gray-200 rounded-xl px-4 py-2.5 pr-10 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white h-12 appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2210%22%20height%3D%2210%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23666%22%20d%3D%22M10.293%203.293L6%207.586%201.707%203.293A1%201%200%2000.293%204.707l5%205a1%201%200%20001.414%200l5-5a1%201%200%2010-1.414-1.414z%22%2F%3E%3C%2Fsvg%3E')] bg-[length:14px] bg-[center_right_0.75rem] bg-no-repeat"
               >
-                <option value="ALL">Semua Role</option>
-                <option value="USER">User</option>
-                <option value="ADMIN">Admin</option>
+                <option value="ALL">Semua Status</option>
+                <option value="ACTIVE">Aktif</option>
+                <option value="INACTIVE">Non-Aktif</option>
               </select>
             </div>
           </div>
@@ -235,12 +341,12 @@ export default function AdminUsersPage() {
               <Users className="h-10 w-10 text-gray-400" />
             </div>
             <p className="text-lg font-semibold text-gray-700 mb-1">
-              {searchQuery || roleFilter !== 'ALL'
+              {searchQuery || statusFilter !== 'ALL'
                 ? 'Tidak ada pengguna yang sesuai dengan filter'
                 : 'Belum ada pengguna'}
             </p>
             <p className="text-sm text-gray-500">
-              {searchQuery || roleFilter !== 'ALL'
+              {searchQuery || statusFilter !== 'ALL'
                 ? 'Coba ubah filter pencarian Anda'
                 : 'Pengguna baru akan muncul di sini'}
             </p>
@@ -248,7 +354,7 @@ export default function AdminUsersPage() {
         ) : (
           <div className="space-y-4">
             {filteredUsers.map((user) => {
-              const subscriptionStatus = getSubscriptionStatus(user.subscription)
+              const subscriptionStatus = getSubscriptionStatus(user.subscriptions)
 
               return (
                 <Card key={user.id} className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
@@ -271,10 +377,23 @@ export default function AdminUsersPage() {
                                 Admin
                               </span>
                             )}
+                            {!user.isActive && (
+                              <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                Non-Aktif
+                              </span>
+                            )}
                             <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-md ${subscriptionStatus.color}`}>
                               {subscriptionStatus.label}
                             </span>
-                          </div>                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
+                          </div>
+
+                          {user.username && (
+                            <p className="text-sm text-gray-600 mb-2">
+                              <span className="font-medium">@{user.username}</span>
+                            </p>
+                          )}
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
                             <div className="flex items-center space-x-2">
                               <Mail className="h-4 w-4 text-gray-400" />
                               <span>{user.email}</span>
@@ -315,13 +434,13 @@ export default function AdminUsersPage() {
                           </div>
 
                           {/* Subscription Info */}
-                          {user.subscription && (
+                          {user.subscriptions?.[0] && (
                             <div className="p-3 bg-gray-50 rounded-lg border">
                               <div className="flex items-center justify-between text-sm">
                                 <div>
-                                  <p className="font-medium text-gray-900">{user.subscription.package.name}</p>
+                                  <p className="font-medium text-gray-900">{user.subscriptions[0].package.name}</p>
                                   <p className="text-xs text-gray-600 mt-1">
-                                    {formatDate(user.subscription.startDate)} - {formatDate(user.subscription.endDate)}
+                                    {formatDate(user.subscriptions[0].startDate)} - {formatDate(user.subscriptions[0].endDate)}
                                   </p>
                                 </div>
                                 <div className="text-right">
@@ -335,7 +454,7 @@ export default function AdminUsersPage() {
                           )}
 
                           {/* No Subscription */}
-                          {!user.subscription && (
+                          {!user.subscriptions?.[0] && (
                             <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-100">
                               <p className="text-sm text-yellow-800">
                                 Belum memiliki langganan aktif
@@ -355,6 +474,40 @@ export default function AdminUsersPage() {
                           <FileText className="h-4 w-4 mr-2" />
                           Detail
                         </Button>
+
+                        {user.role !== 'ADMIN' && (
+                          <>
+                            <Button
+                              onClick={() => handleToggleActive(user)}
+                              variant="outline"
+                              size="sm"
+                              disabled={actionLoading}
+                              className={user.isActive ? 'text-orange-600 hover:text-orange-700 hover:bg-orange-50' : 'text-green-600 hover:text-green-700 hover:bg-green-50'}
+                            >
+                              {user.isActive ? (
+                                <>
+                                  <Ban className="h-4 w-4 mr-2" />
+                                  Nonaktifkan
+                                </>
+                              ) : (
+                                <>
+                                  <Power className="h-4 w-4 mr-2" />
+                                  Aktifkan
+                                </>
+                              )}
+                            </Button>
+
+                            <Button
+                              onClick={() => handleDeleteClick(user)}
+                              variant="outline"
+                              size="sm"
+                              disabled={actionLoading}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -391,8 +544,8 @@ export default function AdminUsersPage() {
                           Admin
                         </span>
                       )}
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getSubscriptionStatus(selectedUser.subscription).color}`}>
-                        {getSubscriptionStatus(selectedUser.subscription).label}
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getSubscriptionStatus(selectedUser.subscriptions).color}`}>
+                        {getSubscriptionStatus(selectedUser.subscriptions).label}
                       </span>
                     </div>
                   </div>
@@ -405,6 +558,12 @@ export default function AdminUsersPage() {
                     Informasi Kontak
                   </h4>
                   <div className="pl-6 space-y-2 text-sm">
+                    {selectedUser.username && (
+                      <div className="flex items-start">
+                        <span className="text-gray-600 w-32">Username:</span>
+                        <span className="text-gray-900 font-medium font-mono">@{selectedUser.username}</span>
+                      </div>
+                    )}
                     <div className="flex items-start">
                       <span className="text-gray-600 w-32">Email:</span>
                       <span className="text-gray-900 font-medium">{selectedUser.email}</span>
@@ -462,31 +621,31 @@ export default function AdminUsersPage() {
                     <CreditCard className="h-4 w-4 mr-2 text-blue-600" />
                     Informasi Langganan
                   </h4>
-                  {selectedUser.subscription ? (
+                  {selectedUser.subscriptions?.[0] ? (
                     <div className="pl-6 p-4 bg-gray-50 rounded-lg border space-y-2 text-sm">
                       <div className="flex items-start">
                         <span className="text-gray-600 w-32">Paket:</span>
-                        <span className="text-gray-900 font-medium">{selectedUser.subscription.package.name}</span>
+                        <span className="text-gray-900 font-medium">{selectedUser.subscriptions[0].package.name}</span>
                       </div>
                       <div className="flex items-start">
                         <span className="text-gray-600 w-32">Kode Paket:</span>
-                        <span className="text-gray-900 font-medium">{selectedUser.subscription.package.code}</span>
+                        <span className="text-gray-900 font-medium">{selectedUser.subscriptions[0].package.code}</span>
                       </div>
                       <div className="flex items-start">
                         <span className="text-gray-600 w-32">Status:</span>
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getSubscriptionStatus(selectedUser.subscription).color}`}>
-                          {getSubscriptionStatus(selectedUser.subscription).label}
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getSubscriptionStatus(selectedUser.subscriptions).color}`}>
+                          {getSubscriptionStatus(selectedUser.subscriptions).label}
                         </span>
                       </div>
                       <div className="flex items-start">
                         <span className="text-gray-600 w-32">Periode:</span>
                         <span className="text-gray-900 font-medium">
-                          {formatDate(selectedUser.subscription.startDate)} - {formatDate(selectedUser.subscription.endDate)}
+                          {formatDate(selectedUser.subscriptions[0].startDate)} - {formatDate(selectedUser.subscriptions[0].endDate)}
                         </span>
                       </div>
                       <div className="flex items-start">
                         <span className="text-gray-600 w-32">Durasi:</span>
-                        <span className="text-gray-900 font-medium">{selectedUser.subscription.package.validityDays} hari</span>
+                        <span className="text-gray-900 font-medium">{selectedUser.subscriptions[0].package.validityDays} hari</span>
                       </div>
                     </div>
                   ) : (
@@ -527,6 +686,48 @@ export default function AdminUsersPage() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Hapus User?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Apakah Anda yakin ingin menghapus user <strong>{userToDelete?.name}</strong> ({userToDelete?.email})?
+                <br /><br />
+                Tindakan ini akan menghapus:
+                <ul className="list-disc list-inside mt-2 text-sm">
+                  <li>Data profil user</li>
+                  <li>{userToDelete?._count.documents || 0} dokumen</li>
+                  <li>{userToDelete?._count.bypasses || 0} bypass</li>
+                  <li>Semua data terkait lainnya</li>
+                </ul>
+                <br />
+                <span className="text-red-600 font-semibold">Tindakan ini tidak dapat dibatalkan!</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={actionLoading}>Batal</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteConfirm}
+                disabled={actionLoading}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {actionLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Menghapus...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Hapus User
+                  </>
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )

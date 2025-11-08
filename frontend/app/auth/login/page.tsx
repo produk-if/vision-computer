@@ -65,7 +65,12 @@ export default function LoginPage() {
       })
 
       if (result?.error) {
-        setError('Username/email atau password salah')
+        // Check if error is about account being disabled
+        if (result.error.includes('dinonaktifkan') || result.error.includes('ditangguhkan')) {
+          setError('🚫 Akun Anda telah ditangguhkan oleh administrator. Silakan hubungi admin untuk informasi lebih lanjut.')
+        } else {
+          setError('Username/email atau password salah')
+        }
       } else {
         // Fetch user account status to determine redirect
         const statusResponse = await fetch('/api/user/account-status')
@@ -184,11 +189,27 @@ export default function LoginPage() {
               )}
 
               {error && (
-                <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg flex items-center">
-                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  {error}
+                <div className={`p-4 rounded-lg border ${error.includes('ditangguhkan')
+                    ? 'bg-orange-50 border-orange-300 text-orange-800'
+                    : 'bg-red-50 border-red-200 text-red-700'
+                  }`}>
+                  <div className="flex items-start">
+                    {error.includes('ditangguhkan') ? (
+                      <svg className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M13.477 14.89A6 6 0 015.11 6.524l8.367 8.368zm1.414-1.414L6.524 5.11a6 6 0 018.367 8.367zM18 10a8 8 0 11-16 0 8 8 0 0116 0z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold mb-1">
+                        {error.includes('ditangguhkan') ? '⚠️ Akun Ditangguhkan' : 'Error'}
+                      </p>
+                      <p className="text-sm">{error}</p>
+                    </div>
+                  </div>
                 </div>
               )}
 

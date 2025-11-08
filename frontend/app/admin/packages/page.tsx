@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Package, Edit, Save, X, Plus, Trash2, DollarSign, Calendar, CheckCircle } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 interface Package {
   id: string
@@ -22,6 +23,7 @@ interface Package {
 }
 
 export default function AdminPackagesPage() {
+  const { toast } = useToast()
   const [packages, setPackages] = useState<Package[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -96,15 +98,26 @@ export default function AdminPackagesPage() {
       const data = await response.json()
 
       if (data.success) {
-        alert('Paket berhasil diperbarui!')
+        toast({
+          title: '✅ Berhasil',
+          description: 'Paket berhasil diperbarui!',
+        })
         setEditingId(null)
         fetchPackages()
       } else {
-        alert(data.error || 'Gagal memperbarui paket')
+        toast({
+          variant: 'destructive',
+          title: '❌ Gagal',
+          description: data.error || 'Gagal memperbarui paket',
+        })
       }
     } catch (error) {
       console.error('Error updating package:', error)
-      alert('Terjadi kesalahan saat memperbarui paket')
+      toast({
+        variant: 'destructive',
+        title: '❌ Error',
+        description: 'Terjadi kesalahan saat memperbarui paket',
+      })
     } finally {
       setSaving(false)
     }

@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     // Check if username already exists
     const existingUsername = await prisma.user.findFirst({
-      where: { name: username },
+      where: { username: username },
     })
 
     if (existingUsername) {
@@ -79,9 +79,11 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.create({
       data: {
         email,
-        name: username, // Use username as name for login
+        username: username, // Username for login
+        name: name, // Full name
         password: hashedPassword,
         role: 'USER',
+        isActive: true, // User aktif secara default saat register
         profile: {
           create: {
             fullName: name, // Store full name in profile

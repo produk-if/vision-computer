@@ -26,12 +26,12 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Email/Username dan password harus diisi')
         }
 
-        // Find user by email or username (name field)
+        // Find user by email or username
         const user = await prisma.user.findFirst({
           where: {
             OR: [
               { email: credentials.identifier },
-              { name: credentials.identifier },
+              { username: credentials.identifier },
             ],
           },
           include: {
@@ -41,6 +41,11 @@ export const authOptions: NextAuthOptions = {
 
         if (!user) {
           throw new Error('Email/Username atau password salah')
+        }
+
+        // Check if user is active
+        if (!user.isActive) {
+          throw new Error('Akun Anda telah ditangguhkan oleh administrator. Silakan hubungi admin untuk informasi lebih lanjut.')
         }
 
         // Check password
@@ -111,7 +116,14 @@ export const authOptions: NextAuthOptions = {
             token.role = dbUser.role
             token.accountStatus = dbUser.accountStatus
             token.isActive = dbUser.isActive
-            token.isValid = true
+
+            // Check if user is active
+            if (!dbUser.isActive) {
+              console.warn('[AUTH] ⚠️ User is not active, marking token as invalid')
+              token.isValid = false
+            } else {
+              token.isValid = true
+            }
           } else {
             // User not found in database
             token.isValid = false
@@ -183,6 +195,12 @@ export const authOptions: NextAuthOptions = {
         console.warn('[AUTH] ⚠️ Token marked as invalid, but allowing session for development')
         // Don't throw error - allow session to continue
         // throw new Error('Session invalid - device mismatch or session stolen')
+      }
+
+      // Check if user is active
+      if (token.isActive === false) {
+        console.warn('[AUTH] ⚠️ User is not active, terminating session')
+        throw new Error('Akun Anda telah ditangguhkan oleh administrator. Silakan hubungi admin untuk informasi lebih lanjut.')
       }
 
       if (session.user && token.id) {

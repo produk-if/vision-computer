@@ -15,6 +15,7 @@ datasource db {
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
+  username      String?        @unique
   name          String
   password      String
   role          UserRole       @default(USER)
@@ -498,4 +499,56 @@ model SystemSetting {
 
   @@map("system_settings")
   @@index([key])
+}
+
+// Master Data - Institutions
+model Institution {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  shortName   String?  // Singkatan (e.g., UI, ITB, UGM)
+  type        String?  // Universitas, Institut, Politeknik, Sekolah Tinggi
+  city        String?
+  province    String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  faculties   Faculty[]
+
+  @@map("institutions")
+  @@index([name])
+}
+
+// Master Data - Faculties
+model Faculty {
+  id             String      @id @default(cuid())
+  name           String
+  institutionId  String
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  majors         Major[]
+
+  @@unique([institutionId, name])
+  @@map("faculties")
+  @@index([institutionId])
+}
+
+// Master Data - Majors (Program Studi)
+model Major {
+  id          String   @id @default(cuid())
+  name        String
+  facultyId   String
+  degree      String?  // S1, S2, S3, D3, D4
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  faculty     Faculty  @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+
+  @@unique([facultyId, name])
+  @@map("majors")
+  @@index([facultyId])
 }
